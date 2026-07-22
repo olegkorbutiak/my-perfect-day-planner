@@ -40,9 +40,20 @@ function writeTasks(updater: (prev: Task[]) => Task[]) {
   listeners.forEach((listener) => listener());
 }
 
+function createTask(text: string): Task {
+  return {
+    id: crypto.randomUUID(),
+    text,
+    createdAt: Date.now(),
+    done: false,
+    scheduledForToday: false,
+  };
+}
+
 type TasksContextValue = {
   tasks: Task[];
   addTask: (text: string) => void;
+  addTasks: (texts: string[]) => void;
   toggleDone: (id: string) => void;
   moveToToday: (id: string) => void;
 };
@@ -55,14 +66,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   const addTask = useCallback((text: string) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const task: Task = {
-      id: crypto.randomUUID(),
-      text: trimmed,
-      createdAt: Date.now(),
-      done: false,
-      scheduledForToday: false,
-    };
-    writeTasks((prev) => [task, ...prev]);
+    writeTasks((prev) => [createTask(trimmed), ...prev]);
+  }, []);
+
+  const addTasks = useCallback((texts: string[]) => {
+    const newTasks = texts.map((t) => t.trim()).filter(Boolean).map(createTask);
+    if (newTasks.length === 0) return;
+    writeTasks((prev) => [...newTasks, ...prev]);
   }, []);
 
   const toggleDone = useCallback((id: string) => {
@@ -78,7 +88,7 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <TasksContext.Provider value={{ tasks, addTask, toggleDone, moveToToday }}>
+    <TasksContext.Provider value={{ tasks, addTask, addTasks, toggleDone, moveToToday }}>
       {children}
     </TasksContext.Provider>
   );

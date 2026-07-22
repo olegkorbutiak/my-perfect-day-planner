@@ -6,10 +6,12 @@ import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 
 export default function CapturePage() {
-  const { addTask } = useTasks();
+  const { addTask, addTasks } = useTasks();
   const [text, setText] = useState("");
   const [baseText, setBaseText] = useState("");
-  const [showSaved, setShowSaved] = useState(false);
+  const [savedMessage, setSavedMessage] = useState("");
+  const [isParsing, setIsParsing] = useState(false);
+  const [parseError, setParseError] = useState("");
 
   const { isListening, isSupported, toggle } = useSpeechRecognition((transcript) => {
     setText(baseText ? `${baseText} ${transcript}`.trim() : transcript);
@@ -20,13 +22,44 @@ export default function CapturePage() {
     toggle();
   };
 
+  const flashSaved = (message: string) => {
+    setSavedMessage(message);
+    setTimeout(() => setSavedMessage(""), 1500);
+  };
+
   const handleSave = () => {
     if (!text.trim()) return;
     addTask(text);
     setText("");
     setBaseText("");
-    setShowSaved(true);
-    setTimeout(() => setShowSaved(false), 1500);
+    flashSaved("Додано в Inbox");
+  };
+
+  const handleParse = async () => {
+    if (!text.trim() || isParsing) return;
+    setIsParsing(true);
+    setParseError("");
+    try {
+      const response = await fetch("/api/parse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!response.ok) throw new Error();
+      const data: { tasks: string[] } = await response.json();
+      addTasks(data.tasks);
+      setText("");
+      setBaseText("");
+      flashSaved(
+        data.tasks.length === 1
+          ? "Додано 1 задачу в Inbox"
+          : `Додано ${data.tasks.length} задачі в Inbox`,
+      );
+    } catch {
+      setParseError("Не вдалося розібрати текст. Спробуйте «Зберегти» без AI.");
+    } finally {
+      setIsParsing(false);
+    }
   };
 
   return (
@@ -45,13 +78,12 @@ export default function CapturePage() {
       </div>
 
       <div className="flex flex-col items-center gap-3 px-5 pb-5">
-        <p
-          className={`font-condensed text-sm font-bold uppercase tracking-wide text-brand-green transition-opacity ${
-            showSaved ? "opacity-100" : "opacity-0"
-          }`}
-        >
-          Додано в Inbox
-        </p>
+        {savedMessage && (
+          <p className="font-condensed text-sm font-bold uppercase tracking-wide text-brand-green">
+            {savedMessage}
+          </p>
+        )}
+        {parseError && <p className="text-sm text-red-600">{parseError}</p>}
 
         <div className="flex w-full items-center gap-3">
           <button
@@ -69,13 +101,22 @@ export default function CapturePage() {
 
           <button
             type="button"
-            onClick={handleSave}
-            disabled={!text.trim()}
+            onClick={handleParse}
+            disabled={!text.trim() || isParsing}
             className="h-16 flex-1 rounded-md bg-brand-green font-condensed text-lg font-bold uppercase tracking-wide text-white transition active:bg-brand-green-strong disabled:opacity-30"
           >
-            Зберегти
+            {isParsing ? "Розбираю…" : "Розібрати з AI"}
           </button>
         </div>
+
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={!text.trim() || isParsing}
+          className="font-condensed text-sm font-bold uppercase tracking-wide text-brand-muted underline underline-offset-2 disabled:opacity-30"
+        >
+          Зберегти без AI
+        </button>
 
         {!isSupported && (
           <p className="text-center text-xs text-brand-muted">
