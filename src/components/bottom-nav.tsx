@@ -12,32 +12,38 @@ const TABS = [
 
 export function BottomNav() {
   const pathname = usePathname();
+  const activeIndex = Math.max(0, TABS.findIndex((t) => t.href === pathname));
 
   return (
     <nav
-      className="flex shrink-0 bg-brand-dark"
+      className="relative shrink-0 border-t border-white/5 bg-brand-dark/90 backdrop-blur-lg"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      {TABS.map(({ href, label, Icon }) => {
-        const isActive = pathname === href;
-        return (
-          <Link
-            key={href}
-            href={href}
-            className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-3 font-condensed text-xs font-bold uppercase tracking-wide transition-colors ${
-              isActive ? "text-white" : "text-white/40"
-            }`}
-          >
-            <span
-              className={`absolute top-0 h-0.5 w-10 bg-brand-green transition-opacity ${
-                isActive ? "opacity-100" : "opacity-0"
+      <span
+        className="absolute top-2 bottom-2 left-0 w-1/3 rounded-xl bg-white/[0.06] transition-transform duration-300 ease-out"
+        style={{ transform: `translateX(${activeIndex * 100}%)` }}
+      />
+
+      <div className="relative flex">
+        {TABS.map(({ href, label, Icon }) => {
+          const isActive = pathname === href;
+          return (
+            <Link
+              key={href}
+              href={href}
+              className={`relative flex flex-1 flex-col items-center justify-center gap-1 py-3 font-condensed text-xs font-bold uppercase tracking-wide transition-all duration-200 active:scale-90 ${
+                isActive ? "text-brand-green" : "text-white/40"
               }`}
-            />
-            <Icon className="h-7 w-7" strokeWidth={isActive ? 2.25 : 1.75} />
-            {label}
-          </Link>
-        );
-      })}
+            >
+              <Icon
+                className={`h-7 w-7 transition-transform duration-300 ${isActive ? "-translate-y-0.5 scale-110" : ""}`}
+                strokeWidth={isActive ? 2.25 : 1.75}
+              />
+              {label}
+            </Link>
+          );
+        })}
+      </div>
     </nav>
   );
 }
