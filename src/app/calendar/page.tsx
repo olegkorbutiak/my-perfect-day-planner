@@ -12,7 +12,9 @@ export default function CalendarPage() {
   const todayISO = useTodayISO();
   const [dayOffset, setDayOffset] = useState(0);
   const selectedDate = addDaysISO(todayISO, dayOffset);
-  const dayTasks = tasks.filter((t) => t.dueDate === selectedDate);
+  const dayTasks = tasks
+    .filter((t) => t.dueDate === selectedDate)
+    .sort((a, b) => (a.dueTime ?? "99:99").localeCompare(b.dueTime ?? "99:99"));
   const isToday = dayOffset === 0;
 
   const handleDateInput = (value: string) => {
@@ -98,6 +100,12 @@ export default function CalendarPage() {
                 >
                   {task.text}
                 </p>
+
+                {task.dueTime && (
+                  <span className="shrink-0 font-condensed text-xs font-bold uppercase tracking-wide text-brand-muted">
+                    {task.dueTime}
+                  </span>
+                )}
               </li>
             ))}
           </ul>

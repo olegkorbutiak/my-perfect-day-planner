@@ -41,3 +41,13 @@ export function formatDateLabel(iso: string, todayIso: string): string {
   const { d, m } = parseISO(iso);
   return `${d} ${MONTHS[m - 1]}`;
 }
+
+export function formatScheduleLabel(
+  dueDate: string | null,
+  dueTime: string | null,
+  todayIso: string,
+): string | null {
+  if (!dueDate) return null;
+  const dateLabel = formatDateLabel(dueDate, todayIso);
+  return dueTime ? `${dateLabel}, ${dueTime}` : dateLabel;
+}

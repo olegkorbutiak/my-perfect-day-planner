@@ -47,6 +47,7 @@ function createTask(text: string, dueDate: string | null = null): Task {
     createdAt: Date.now(),
     done: false,
     dueDate,
+    dueTime: null,
   };
 }
 
@@ -58,6 +59,7 @@ type TasksContextValue = {
   addTasks: (parsedTasks: ParsedTask[]) => void;
   toggleDone: (id: string) => void;
   setDueDate: (id: string, dueDate: string | null) => void;
+  setDueTime: (id: string, dueTime: string | null) => void;
 };
 
 const TasksContext = createContext<TasksContextValue | null>(null);
@@ -88,12 +90,20 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   const setDueDate = useCallback((id: string, dueDate: string | null) => {
     writeTasks((prev) =>
-      prev.map((t) => (t.id === id ? { ...t, dueDate } : t)),
+      prev.map((t) => (t.id === id ? { ...t, dueDate, dueTime: dueDate ? t.dueTime : null } : t)),
+    );
+  }, []);
+
+  const setDueTime = useCallback((id: string, dueTime: string | null) => {
+    writeTasks((prev) =>
+      prev.map((t) => (t.id === id ? { ...t, dueTime } : t)),
     );
   }, []);
 
   return (
-    <TasksContext.Provider value={{ tasks, addTask, addTasks, toggleDone, setDueDate }}>
+    <TasksContext.Provider
+      value={{ tasks, addTask, addTasks, toggleDone, setDueDate, setDueTime }}
+    >
       {children}
     </TasksContext.Provider>
   );
