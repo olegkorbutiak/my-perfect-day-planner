@@ -60,6 +60,7 @@ type TasksContextValue = {
   toggleDone: (id: string) => void;
   setDueDate: (id: string, dueDate: string | null) => void;
   setDueTime: (id: string, dueTime: string | null) => void;
+  removeTask: (id: string) => void;
 };
 
 const TasksContext = createContext<TasksContextValue | null>(null);
@@ -100,9 +101,13 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const removeTask = useCallback((id: string) => {
+    writeTasks((prev) => prev.filter((t) => t.id !== id));
+  }, []);
+
   return (
     <TasksContext.Provider
-      value={{ tasks, addTask, addTasks, toggleDone, setDueDate, setDueTime }}
+      value={{ tasks, addTask, addTasks, toggleDone, setDueDate, setDueTime, removeTask }}
     >
       {children}
     </TasksContext.Provider>

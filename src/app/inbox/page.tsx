@@ -1,13 +1,13 @@
 "use client";
 
-import { CalendarIcon, CheckIcon, ClockIcon, InboxIcon } from "@/components/icons";
+import { CalendarIcon, CheckIcon, ClockIcon, InboxIcon, TrashIcon } from "@/components/icons";
 import { EmptyState } from "@/components/empty-state";
 import { useTasks } from "@/lib/tasks-context";
 import { useTodayISO } from "@/lib/use-today";
 import { formatScheduleLabel } from "@/lib/date-utils";
 
 export default function InboxPage() {
-  const { tasks, toggleDone, setDueDate, setDueTime } = useTasks();
+  const { tasks, toggleDone, setDueDate, setDueTime, removeTask } = useTasks();
   const todayISO = useTodayISO();
 
   if (tasks.length === 0) {
@@ -85,6 +85,15 @@ export default function InboxPage() {
                   />
                 </div>
               )}
+
+              <button
+                type="button"
+                onClick={() => removeTask(task.id)}
+                aria-label="Видалити задачу"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-red-600/10 text-red-600 transition-all duration-200 active:scale-90 active:bg-red-600/20"
+              >
+                <TrashIcon className="h-5 w-5" />
+              </button>
             </li>
           );
         })}
