@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { addDaysISO, getNextWeekdayISO, todayISO } from "@/lib/date-utils";
+import { addDaysISO, getNextAnnualDateISO, getNextWeekdayISO, todayISO } from "@/lib/date-utils";
 import { sanitizeUkrainian } from "@/lib/uk-sanitize";
 
 const DEFAULT_MODEL = "llama-3.3-70b-versatile";
@@ -22,9 +22,12 @@ const SYSTEM_PROMPT =
   '"title" — коротке формулювання задачі у наказовому стилі, без слів на позначення дати/часу всередині, без нумерації. ' +
   '"date" — одне з: "today" (сьогодні), "tomorrow" (завтра), "day_after_tomorrow" (післязавтра), ' +
   '"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday" (якщо згадано конкретний день тижня — ' +
-  'напр. "у п\'ятницю", "в неділю"), або "none" (якщо дату взагалі не вказано). ' +
+  'напр. "у п\'ятницю", "в неділю"), рядок у форматі "MM-DD" (лише місяць і день, без року), якщо вказано конкретне ' +
+  'календарне число (напр. "26 липня" → "07-26", "1 січня" → "01-01", "26.07" → "07-26") — рік визначати не потрібно, ' +
+  'система сама підставить найближчий відповідний рік, або "none" (якщо дату взагалі не вказано). ' +
   '"time" — час у форматі "ГГ:ХХ" (24-годинний), якщо в тексті прямо вказано час (напр. "о 15:00", "о 9 ранку" → "09:00"), ' +
   'або приблизний час за словом дня: "вранці"/"зранку" → "09:00", "вдень" → "13:00", "ввечері" → "19:00", "вночі" → "22:00". ' +
+  'Слова "цілий день"/"весь день"/"на весь день" НЕ є часом дня — якщо подія на цілий день, "time" завжди null. ' +
   'Якщо часу немає в тексті — "time": null. Якщо "date" дорівнює "none", то "time" теж завжди null. ' +
   "КРИТИЧНО ВАЖЛИВО: не вигадуй жодних дій, яких немає в тексті користувача. Кожна задача має відповідати " +
   "конкретній дії, згаданій у вхідному тексті — нічого не додавай і не змінюй суть. " +
@@ -39,22 +42,18 @@ const SYSTEM_PROMPT =
   "службових слів у тексті не залишилось жодної конкретної дії, використай як title рештку введеного тексту " +
   "буквально — ніколи не вигадуй сторонню задачу, якої немає у вхідному тексті.";
 
-type RelativeDate =
-  | "today"
-  | "tomorrow"
-  | "day_after_tomorrow"
-  | (typeof WEEKDAY_KEYS)[number]
-  | "none";
+const ABSOLUTE_DATE_PATTERN = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
-type ParsedTask = { title: string; date: RelativeDate; time: string | null };
+type ParsedTask = { title: string; date: string; time: string | null };
 
-function isRelativeDate(value: unknown): value is RelativeDate {
+function isParsedDate(value: unknown): value is string {
   return (
     value === "today" ||
     value === "tomorrow" ||
     value === "day_after_tomorrow" ||
     value === "none" ||
-    (typeof value === "string" && (WEEKDAY_KEYS as readonly string[]).includes(value))
+    (typeof value === "string" &&
+      ((WEEKDAY_KEYS as readonly string[]).includes(value) || ABSOLUTE_DATE_PATTERN.test(value)))
   );
 }
 
@@ -108,7 +107,7 @@ async function requestTasks(apiKey: string, model: string, text: string): Promis
       )
       .filter((t) => typeof t.title === "string" && t.title.trim())
       .map((t) => {
-        const date = isRelativeDate(t.date) ? t.date : "none";
+        const date = isParsedDate(t.date) ? t.date : "none";
         return {
           title: sanitizeUkrainian((t.title as string).trim()),
           date,
@@ -119,13 +118,16 @@ async function requestTasks(apiKey: string, model: string, text: string): Promis
   };
 }
 
-function toDueDate(date: RelativeDate): string | null {
+function toDueDate(date: string): string | null {
   const today = todayISO();
   if (date === "today") return today;
   if (date === "tomorrow") return addDaysISO(today, 1);
   if (date === "day_after_tomorrow") return addDaysISO(today, 2);
   if ((WEEKDAY_KEYS as readonly string[]).includes(date)) {
     return getNextWeekdayISO(today, date);
+  }
+  if (ABSOLUTE_DATE_PATTERN.test(date)) {
+    return getNextAnnualDateISO(today, date);
   }
   return null;
 }

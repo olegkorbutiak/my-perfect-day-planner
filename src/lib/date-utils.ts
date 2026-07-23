@@ -155,3 +155,12 @@ export function getNextWeekdayISO(todayIso: string, weekdayKey: string): string 
   const offset = (target - todayJsDay + 7) % 7;
   return addDaysISO(todayIso, offset);
 }
+
+/** The nearest ISO date (today included) matching an annual "MM-DD" calendar date. */
+export function getNextAnnualDateISO(todayIso: string, monthDay: string): string | null {
+  const match = /^(\d{2})-(\d{2})$/.exec(monthDay);
+  if (!match) return null;
+  const year = parseISO(todayIso).y;
+  const candidate = `${year}-${match[1]}-${match[2]}`;
+  return candidate >= todayIso ? candidate : `${year + 1}-${match[1]}-${match[2]}`;
+}
