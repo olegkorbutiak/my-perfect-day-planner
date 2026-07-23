@@ -80,7 +80,6 @@ export default function CapturePage() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Що на думці, господарю?"
-          autoFocus
           className="h-full w-full resize-none bg-transparent pt-2 text-2xl leading-relaxed text-brand-text outline-none transition-colors placeholder:text-neutral-300 selection:bg-brand-green/20 caret-brand-green"
         />
         {!text.trim() && (
