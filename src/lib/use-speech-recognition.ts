@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { sanitizeUkrainian } from "./uk-sanitize";
 
 type SpeechRecognitionResultLike = { 0: { transcript: string } };
 type SpeechRecognitionEventLike = { results: ArrayLike<SpeechRecognitionResultLike> };
@@ -59,7 +60,7 @@ export function useSpeechRecognition(onResult: (transcript: string) => void) {
         .map((result) => result[0].transcript)
         .join(" ")
         .trim();
-      onResultRef.current(transcript);
+      onResultRef.current(sanitizeUkrainian(transcript));
     };
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);

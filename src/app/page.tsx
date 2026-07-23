@@ -59,10 +59,11 @@ export default function CapturePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
-      if (!response.ok) throw new Error();
       const data: {
-        tasks: { title: string; dueDate: string | null; dueTime: string | null }[];
+        tasks?: { title: string; dueDate: string | null; dueTime: string | null }[];
+        error?: string;
       } = await response.json();
+      if (!response.ok || !data.tasks) throw new Error(data.error);
       addTasks(
         data.tasks.map((t) => ({ text: t.title, dueDate: t.dueDate, dueTime: t.dueTime })),
       );
@@ -74,8 +75,12 @@ export default function CapturePage() {
       flashSaved(
         scheduledCount > 0 ? `${message} (${scheduledCount} — у календарі)` : `${message} у Вхідні`,
       );
-    } catch {
-      setParseError("Не вдалося розібрати текст. Спробуйте «Зберегти» без AI.");
+    } catch (err) {
+      setParseError(
+        err instanceof Error && err.message
+          ? err.message
+          : "Не вдалося розібрати текст. Спробуйте «Зберегти» без AI.",
+      );
     } finally {
       setIsParsing(false);
     }

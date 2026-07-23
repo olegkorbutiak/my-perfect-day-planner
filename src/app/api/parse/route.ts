@@ -1,8 +1,10 @@
 import { NextResponse } from "next/server";
 import { addDaysISO, getNextWeekdayISO, todayISO } from "@/lib/date-utils";
+import { sanitizeUkrainian } from "@/lib/uk-sanitize";
 
 const DEFAULT_MODEL = "nvidia/nemotron-nano-9b-v2:free";
 const MAX_ATTEMPTS = 2;
+const REQUEST_TIMEOUT_MS = 12000;
 
 const WEEKDAY_KEYS = [
   "monday",
@@ -15,6 +17,7 @@ const WEEKDAY_KEYS = [
 ] as const;
 
 const SYSTEM_PROMPT =
+  "/no_think\n" +
   "Ти розбираєш нотатку користувача українською мовою на окремі конкретні задачі, визначаючи для кожної дату й час. " +
   'Поверни лише JSON-об\'єкт форми {"tasks": [{"title": "...", "date": "today", "time": "15:00"}]}. ' +
   '"title" — коротке формулювання задачі у наказовому стилі, без слів на позначення дати/часу всередині, без нумерації. ' +
@@ -28,7 +31,10 @@ const SYSTEM_PROMPT =
   "конкретній дії, згаданій у вхідному тексті — нічого не додавай і не змінюй суть. " +
   "Усі назви задач пиши українською мовою — тією ж, що й вхідний текст, без перекладу. " +
   "УВАГА: якщо в тексті згадано кілька РІЗНИХ днів тижня для різних задач — уважно прив'язуй кожну дату саме до " +
-  "тієї задачі, біля якої вона стоїть у реченні. Не переноси день тижня однієї задачі на іншу.";
+  "тієї задачі, біля якої вона стоїть у реченні. Не переноси день тижня однієї задачі на іншу. " +
+  "Пиши виключно грамотною літературною українською мовою: без жодних російських слів, без кальок з російської " +
+  "(напр. \"сьогодні\" не \"сегодня\", \"зробити\" не \"сделать\", \"дякую\" не \"спасибо\") і без латинської транслітерації " +
+  "українських слів.";
 
 const EXAMPLE_INPUT =
   "Сьогодні о 15:00 зустріч з лікарем, у понеділок ввечері подзвонити мамі, а в суботу зранку з'їздити на дачу";
@@ -63,15 +69,20 @@ function isValidTime(value: unknown): value is string {
   return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
-async function requestTasks(apiKey: string, model: string, text: string): Promise<ParsedTask[]> {
+type RequestResult = { tasks: ParsedTask[]; rateLimited: boolean };
+
+async function requestTasks(apiKey: string, model: string, text: string): Promise<RequestResult> {
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
     },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     body: JSON.stringify({
       model,
+      temperature: 0.2,
+      provider: { sort: "latency" },
       response_format: { type: "json_object" },
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
@@ -80,9 +91,11 @@ async function requestTasks(apiKey: string, model: string, text: string): Promis
         { role: "user", content: text },
       ],
     }),
-  });
+  }).catch(() => null);
 
-  if (!response.ok) return [];
+  if (!response) return { tasks: [], rateLimited: false };
+  if (response.status === 429) return { tasks: [], rateLimited: true };
+  if (!response.ok) return { tasks: [], rateLimited: false };
 
   const data = await response.json();
   const content: string = data?.choices?.[0]?.message?.content ?? "";
@@ -91,25 +104,28 @@ async function requestTasks(apiKey: string, model: string, text: string): Promis
   try {
     parsed = JSON.parse(content);
   } catch {
-    return [];
+    return { tasks: [], rateLimited: false };
   }
 
   const tasks = (parsed as { tasks?: unknown })?.tasks;
-  if (!Array.isArray(tasks)) return [];
+  if (!Array.isArray(tasks)) return { tasks: [], rateLimited: false };
 
-  return tasks
-    .filter((t): t is { title: unknown; date: unknown; time: unknown } =>
-      typeof t === "object" && t !== null,
-    )
-    .filter((t) => typeof t.title === "string" && t.title.trim())
-    .map((t) => {
-      const date = isRelativeDate(t.date) ? t.date : "none";
-      return {
-        title: (t.title as string).trim(),
-        date,
-        time: date !== "none" && isValidTime(t.time) ? t.time : null,
-      };
-    });
+  return {
+    tasks: tasks
+      .filter((t): t is { title: unknown; date: unknown; time: unknown } =>
+        typeof t === "object" && t !== null,
+      )
+      .filter((t) => typeof t.title === "string" && t.title.trim())
+      .map((t) => {
+        const date = isRelativeDate(t.date) ? t.date : "none";
+        return {
+          title: sanitizeUkrainian((t.title as string).trim()),
+          date,
+          time: date !== "none" && isValidTime(t.time) ? t.time : null,
+        };
+      }),
+    rateLimited: false,
+  };
 }
 
 function toDueDate(date: RelativeDate): string | null {
@@ -141,12 +157,18 @@ export async function POST(request: Request) {
   const model = process.env.OPENROUTER_MODEL ?? DEFAULT_MODEL;
 
   let tasks: ParsedTask[] = [];
-  for (let attempt = 0; attempt < MAX_ATTEMPTS && tasks.length === 0; attempt++) {
-    tasks = await requestTasks(apiKey, model, text);
+  let rateLimited = false;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS && tasks.length === 0 && !rateLimited; attempt++) {
+    const result = await requestTasks(apiKey, model, text);
+    tasks = result.tasks;
+    rateLimited = result.rateLimited;
   }
 
   if (tasks.length === 0) {
-    return NextResponse.json({ error: "AI не зміг розпізнати задачі" }, { status: 502 });
+    const error = rateLimited
+      ? "Перевищено денний ліміт безкоштовних AI-запитів. Спробуйте пізніше або скористайтеся «Зберегти без AI»."
+      : "AI не зміг розпізнати задачі";
+    return NextResponse.json({ error }, { status: rateLimited ? 429 : 502 });
   }
 
   return NextResponse.json({
