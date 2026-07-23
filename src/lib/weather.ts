@@ -81,6 +81,22 @@ export type HikeAdviceLevel = "good" | "moderate" | "bad";
 
 const BAD_CODES = new Set([65, 66, 67, 75, 77, 82, 86, 95, 96, 99]);
 const WET_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 71, 73, 80, 81, 85]);
+const SNOW_CODES = new Set([71, 73, 75, 77, 85, 86]);
+const RAIN_CODES = new Set([51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82]);
+const THUNDER_CODES = new Set([95, 96, 99]);
+
+const HIKE_KEYWORDS = [
+  "похід", "поход", "гори", "гору", "гірськ", "трек", "хайк",
+  "вершина", "сходження", "кемпінг", "турист",
+];
+
+/** Whether any of the given task titles mention a hike/mountain trip. */
+export function isHikeRelated(taskTexts: string[]): boolean {
+  return taskTexts.some((text) => {
+    const lower = text.toLowerCase();
+    return HIKE_KEYWORDS.some((kw) => lower.includes(kw));
+  });
+}
 
 export function getHikeAdvice(day: DailyForecast): { level: HikeAdviceLevel; text: string } {
   if (BAD_CODES.has(day.weatherCode) || day.precipitationProbability >= 70 || day.windSpeedMax >= 50) {
@@ -96,4 +112,30 @@ export function getHikeAdvice(day: DailyForecast): { level: HikeAdviceLevel; tex
     return { level: "moderate", text: "Помірні умови — візьміть додаткове спорядження" };
   }
   return { level: "good", text: "Гарний день для походу в гори" };
+}
+
+/** A general, non-hiking-specific weather tip. Null when there's nothing notable to flag. */
+export function getGeneralWeatherTip(day: DailyForecast): string | null {
+  if (THUNDER_CODES.has(day.weatherCode)) {
+    return "Очікується гроза — по можливості лишайтеся в приміщенні";
+  }
+  if (SNOW_CODES.has(day.weatherCode)) {
+    return "Сьогодні сніг — вдягніться тепліше і будьте обережні на дорозі";
+  }
+  if (RAIN_CODES.has(day.weatherCode) || day.precipitationProbability >= 50) {
+    return "Сьогодні дощ — не забудьте парасольку";
+  }
+  if (day.windSpeedMax >= 40) {
+    return "Сильний вітер — вдягніться тепліше";
+  }
+  if (day.tempMax >= 30) {
+    return "Спекотно — пийте більше води й уникайте сонця опівдні";
+  }
+  if (day.tempMax <= 0) {
+    return "Морозно — вдягніться якнайтепліше";
+  }
+  if (day.precipitationProbability >= 30) {
+    return "Можливий дощ — візьміть парасольку про всяк випадок";
+  }
+  return null;
 }

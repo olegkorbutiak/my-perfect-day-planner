@@ -1,11 +1,19 @@
 "use client";
 
 import type { DailyForecast } from "@/lib/weather";
-import { getHikeAdvice, getWeatherInfo } from "@/lib/weather";
+import { getGeneralWeatherTip, getHikeAdvice, getWeatherInfo, isHikeRelated } from "@/lib/weather";
 
-export function WeatherDayCard({ day }: { day: DailyForecast }) {
+export function WeatherDayCard({
+  day,
+  taskTexts = [],
+}: {
+  day: DailyForecast;
+  taskTexts?: string[];
+}) {
   const { icon, label } = getWeatherInfo(day.weatherCode);
-  const advice = getHikeAdvice(day);
+  const showHikeAdvice = isHikeRelated(taskTexts);
+  const hikeAdvice = showHikeAdvice ? getHikeAdvice(day) : null;
+  const generalTip = showHikeAdvice ? null : getGeneralWeatherTip(day);
 
   const adviceStyles: Record<string, string> = {
     good: "bg-brand-green/10 text-brand-green",
@@ -28,9 +36,16 @@ export function WeatherDayCard({ day }: { day: DailyForecast }) {
         </div>
       </div>
 
-      <p className={`rounded-md px-3 py-2 text-sm font-medium ${adviceStyles[advice.level]}`}>
-        {advice.text}
-      </p>
+      {hikeAdvice && (
+        <p className={`rounded-md px-3 py-2 text-sm font-medium ${adviceStyles[hikeAdvice.level]}`}>
+          {hikeAdvice.text}
+        </p>
+      )}
+      {generalTip && (
+        <p className="rounded-md bg-brand-dark/[0.06] px-3 py-2 text-sm font-medium text-brand-text">
+          {generalTip}
+        </p>
+      )}
     </div>
   );
 }

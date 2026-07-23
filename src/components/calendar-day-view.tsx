@@ -59,7 +59,7 @@ export function CalendarDayView({
         {(holiday || weatherDay) && (
           <div className="flex flex-col gap-2 px-5 pt-2">
             {holiday && <HolidayBanner holiday={holiday} />}
-            {weatherDay && <WeatherDayCard day={weatherDay} />}
+            {weatherDay && <WeatherDayCard day={weatherDay} taskTexts={[]} />}
           </div>
         )}
         <EmptyState
@@ -74,7 +74,9 @@ export function CalendarDayView({
   return (
     <div className="flex flex-col gap-4 p-5 pt-2">
       {holiday && <HolidayBanner holiday={holiday} />}
-      {weatherDay && <WeatherDayCard day={weatherDay} />}
+      {weatherDay && (
+        <WeatherDayCard day={weatherDay} taskTexts={dayTasks.map((t) => t.text)} />
+      )}
 
       {untimed.length > 0 && (
         <ul className="flex flex-col gap-2">
