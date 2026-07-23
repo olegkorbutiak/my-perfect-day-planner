@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CheckIcon, MicIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { InspirationQuote } from "@/components/inspiration-quote";
 import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
+
+function autoResizeTextarea(el: HTMLTextAreaElement | null) {
+  if (!el) return;
+  el.style.height = "auto";
+  const lineHeight = parseFloat(getComputedStyle(el).lineHeight) || 32;
+  el.style.height = `${Math.max(el.scrollHeight, lineHeight * 3)}px`;
+}
 
 export default function CapturePage() {
   const { addTask, addTasks } = useTasks();
@@ -14,6 +21,11 @@ export default function CapturePage() {
   const [savedMessage, setSavedMessage] = useState("");
   const [isParsing, setIsParsing] = useState(false);
   const [parseError, setParseError] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    autoResizeTextarea(textareaRef.current);
+  }, [text]);
 
   const { isListening, isSupported, toggle } = useSpeechRecognition((transcript) => {
     setText(baseText ? `${baseText} ${transcript}`.trim() : transcript);
@@ -71,19 +83,20 @@ export default function CapturePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pt-6">
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-5 pt-6">
         <Logo className="animate-fade-up pb-4" />
         <p className="animate-fade-up font-condensed text-xs font-bold uppercase tracking-wide text-brand-green">
           Занотувати
         </p>
         <textarea
+          ref={textareaRef}
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Що на думці, господарю?"
-          className="h-full w-full resize-none bg-transparent pt-2 text-2xl leading-relaxed text-brand-text outline-none transition-colors placeholder:text-neutral-300 selection:bg-brand-green/20 caret-brand-green"
+          className="mt-2 w-full resize-none bg-transparent text-2xl leading-relaxed text-brand-text outline-none transition-colors placeholder:text-neutral-300 selection:bg-brand-green/20 caret-brand-green"
         />
         {!text.trim() && (
-          <div className="pointer-events-none absolute inset-x-5 bottom-4 animate-fade-up">
+          <div className="mt-auto animate-fade-up pb-4">
             <InspirationQuote />
           </div>
         )}
