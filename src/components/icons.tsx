@@ -165,3 +165,12 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
     </Svg>
   );
 }
+
+export function LinkIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1.5 1.5" />
+      <path d="M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1.5-1.5" />
+    </Svg>
+  );
+}

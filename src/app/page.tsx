@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { CheckIcon, MicIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
+import { InspirationQuote } from "@/components/inspiration-quote";
 import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 
@@ -70,7 +71,7 @@ export default function CapturePage() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-6">
+      <div className="relative min-h-0 flex-1 overflow-y-auto px-5 pt-6">
         <Logo className="animate-fade-up pb-4" />
         <p className="animate-fade-up font-condensed text-xs font-bold uppercase tracking-wide text-brand-green">
           Занотувати
@@ -82,6 +83,11 @@ export default function CapturePage() {
           autoFocus
           className="h-full w-full resize-none bg-transparent pt-2 text-2xl leading-relaxed text-brand-text outline-none transition-colors placeholder:text-neutral-300 selection:bg-brand-green/20 caret-brand-green"
         />
+        {!text.trim() && (
+          <div className="pointer-events-none absolute inset-x-5 bottom-4 animate-fade-up">
+            <InspirationQuote />
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col items-center gap-3 px-5 pb-5">
