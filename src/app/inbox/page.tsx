@@ -83,7 +83,7 @@ export default function InboxPage() {
   const todayISO = useTodayISO();
 
   const [search, setSearch] = useState("");
-  const [sortMode, setSortMode] = useState<SortMode>("created");
+  const [sortMode, setSortMode] = useState<SortMode>("chrono");
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<Task | null>(null);
