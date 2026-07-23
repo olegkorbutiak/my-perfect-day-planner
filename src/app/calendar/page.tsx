@@ -11,46 +11,77 @@ import {
 } from "@/components/icons";
 import { CalendarDayView } from "@/components/calendar-day-view";
 import { CalendarWeekView } from "@/components/calendar-week-view";
+import { CalendarMonthView } from "@/components/calendar-month-view";
 import { useTasks } from "@/lib/tasks-context";
 import { useTodayISO } from "@/lib/use-today";
 import {
   addDaysISO,
+  addMonthsISO,
   diffDaysISO,
   formatDateLabel,
+  formatMonthLabel,
   formatWeekRangeLabel,
+  getMonthGridDays,
   getWeekStartISO,
 } from "@/lib/date-utils";
 import { downloadICS } from "@/lib/ics-export";
 
+type ViewMode = "day" | "week" | "month";
+
 export default function CalendarPage() {
   const { tasks, toggleDone } = useTasks();
   const todayISO = useTodayISO();
-  const [viewMode, setViewMode] = useState<"day" | "week">("day");
+  const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [dayOffset, setDayOffset] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
 
   const selectedDate = addDaysISO(todayISO, dayOffset);
   const weekStart = getWeekStartISO(addDaysISO(todayISO, weekOffset * 7));
   const weekDays = Array.from({ length: 7 }, (_, i) => addDaysISO(weekStart, i));
+  const monthAnchor = addMonthsISO(todayISO, monthOffset);
+  const monthDays = getMonthGridDays(monthAnchor);
   const isToday = dayOffset === 0;
 
   const dayTasks = tasks
     .filter((t) => t.dueDate === selectedDate)
     .sort((a, b) => (a.dueTime ?? "99:99").localeCompare(b.dueTime ?? "99:99"));
 
-  const navLabel = viewMode === "day" ? formatDateLabel(selectedDate, todayISO) : formatWeekRangeLabel(weekStart);
-  const pickerValue = viewMode === "day" ? selectedDate : weekStart;
+  const navLabel =
+    viewMode === "day"
+      ? formatDateLabel(selectedDate, todayISO)
+      : viewMode === "week"
+        ? formatWeekRangeLabel(weekStart)
+        : formatMonthLabel(monthAnchor);
+  const pickerValue = viewMode === "day" ? selectedDate : viewMode === "week" ? weekStart : monthAnchor;
 
-  const handlePrev = () => (viewMode === "day" ? setDayOffset((d) => d - 1) : setWeekOffset((w) => w - 1));
-  const handleNext = () => (viewMode === "day" ? setDayOffset((d) => d + 1) : setWeekOffset((w) => w + 1));
+  const handlePrev = () => {
+    if (viewMode === "day") setDayOffset((d) => d - 1);
+    else if (viewMode === "week") setWeekOffset((w) => w - 1);
+    else setMonthOffset((m) => m - 1);
+  };
+  const handleNext = () => {
+    if (viewMode === "day") setDayOffset((d) => d + 1);
+    else if (viewMode === "week") setWeekOffset((w) => w + 1);
+    else setMonthOffset((m) => m + 1);
+  };
 
   const handleDateInput = (value: string) => {
     if (!value) return;
     if (viewMode === "day") {
       setDayOffset(diffDaysISO(value, todayISO));
-    } else {
+    } else if (viewMode === "week") {
       setWeekOffset(Math.round(diffDaysISO(getWeekStartISO(value), getWeekStartISO(todayISO)) / 7));
+    } else {
+      const [ty, tm] = value.slice(0, 7).split("-").map(Number);
+      const [cy, cm] = todayISO.slice(0, 7).split("-").map(Number);
+      setMonthOffset((ty - cy) * 12 + (tm - cm));
     }
+  };
+
+  const handleSelectDay = (iso: string) => {
+    setDayOffset(diffDaysISO(iso, todayISO));
+    setViewMode("day");
   };
 
   return (
@@ -78,6 +109,17 @@ export default function CalendarPage() {
             }`}
           >
             <GridIcon className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("month")}
+            aria-pressed={viewMode === "month"}
+            aria-label="Вигляд місяця"
+            className={`flex h-9 w-9 items-center justify-center rounded-md transition-all duration-200 active:scale-90 ${
+              viewMode === "month" ? "bg-brand-green text-white" : "text-white/50"
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
           </button>
         </div>
 
@@ -128,18 +170,30 @@ export default function CalendarPage() {
         </button>
       </div>
 
-      <div key={viewMode + navLabel} className="min-h-0 flex-1 overflow-y-auto">
-        {viewMode === "day" ? (
-          <CalendarDayView dayTasks={dayTasks} onToggle={toggleDone} />
-        ) : (
-          <CalendarWeekView
-            weekDays={weekDays}
-            tasks={tasks}
+      {viewMode === "month" ? (
+        <div key={navLabel} className="min-h-0 flex-1 animate-fade-up">
+          <CalendarMonthView
+            monthDays={monthDays}
+            monthAnchor={monthAnchor}
             todayISO={todayISO}
-            onToggle={toggleDone}
+            tasks={tasks}
+            onSelectDay={handleSelectDay}
           />
-        )}
-      </div>
+        </div>
+      ) : (
+        <div key={viewMode + navLabel} className="min-h-0 flex-1 overflow-y-auto">
+          {viewMode === "day" ? (
+            <CalendarDayView dayTasks={dayTasks} onToggle={toggleDone} />
+          ) : (
+            <CalendarWeekView
+              weekDays={weekDays}
+              tasks={tasks}
+              todayISO={todayISO}
+              onToggle={toggleDone}
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }

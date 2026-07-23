@@ -3,6 +3,11 @@ const MONTHS = [
   "липня", "серпня", "вересня", "жовтня", "листопада", "грудня",
 ];
 
+const MONTHS_NOMINATIVE = [
+  "Січень", "Лютий", "Березень", "Квітень", "Травень", "Червень",
+  "Липень", "Серпень", "Вересень", "Жовтень", "Листопад", "Грудень",
+];
+
 const WEEKDAYS_SHORT = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "НД"];
 
 export function toISODate(date: Date): string {
@@ -99,4 +104,34 @@ export function formatWeekRangeLabel(weekStartIso: string): string {
 export function timeToMinutes(time: string): number {
   const [h, m] = time.split(":").map(Number);
   return h * 60 + m;
+}
+
+/** First-of-month ISO date, `delta` months from the month of `iso`. */
+export function addMonthsISO(iso: string, delta: number): string {
+  const { y, m } = parseISO(iso);
+  return toISODate(new Date(y, m - 1 + delta, 1));
+}
+
+export function isSameMonth(iso: string, refIso: string): boolean {
+  const a = parseISO(iso);
+  const b = parseISO(refIso);
+  return a.y === b.y && a.m === b.m;
+}
+
+export function formatMonthLabel(iso: string): string {
+  const { y, m } = parseISO(iso);
+  return `${MONTHS_NOMINATIVE[m - 1]} ${y}`;
+}
+
+/** 42 ISO dates (6 Monday-start weeks) covering the month of `iso`, with
+ * leading/trailing days from adjacent months to fill the grid. */
+export function getMonthGridDays(iso: string): string[] {
+  const { y, m } = parseISO(iso);
+  const firstOfMonth = `${y}-${String(m).padStart(2, "0")}-01`;
+  const gridStart = getWeekStartISO(firstOfMonth);
+  return Array.from({ length: 42 }, (_, i) => addDaysISO(gridStart, i));
+}
+
+export function dayOfMonth(iso: string): number {
+  return parseISO(iso).d;
 }
