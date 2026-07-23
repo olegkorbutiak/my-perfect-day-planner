@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { CheckIcon, MicIcon } from "@/components/icons";
+import { Logo } from "@/components/logo";
 import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 
@@ -66,6 +67,7 @@ export default function CapturePage() {
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-6">
+        <Logo className="animate-fade-up pb-4" />
         <p className="animate-fade-up font-condensed text-xs font-bold uppercase tracking-wide text-brand-green">
           Занотувати
         </p>
