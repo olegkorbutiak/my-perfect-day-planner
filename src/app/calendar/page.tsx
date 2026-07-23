@@ -12,8 +12,11 @@ import {
 import { CalendarDayView } from "@/components/calendar-day-view";
 import { CalendarWeekView } from "@/components/calendar-week-view";
 import { CalendarMonthView } from "@/components/calendar-month-view";
+import { WeatherLocationPicker } from "@/components/weather-location-picker";
 import { useTasks } from "@/lib/tasks-context";
 import { useTodayISO } from "@/lib/use-today";
+import { useWeatherLocation } from "@/lib/use-weather-location";
+import { useForecast } from "@/lib/use-forecast";
 import {
   addDaysISO,
   addMonthsISO,
@@ -31,6 +34,8 @@ type ViewMode = "day" | "week" | "month";
 export default function CalendarPage() {
   const { tasks, toggleDone } = useTasks();
   const todayISO = useTodayISO();
+  const weatherLocation = useWeatherLocation();
+  const { forecast } = useForecast(weatherLocation);
   const [viewMode, setViewMode] = useState<ViewMode>("day");
   const [dayOffset, setDayOffset] = useState(0);
   const [weekOffset, setWeekOffset] = useState(0);
@@ -46,6 +51,7 @@ export default function CalendarPage() {
   const dayTasks = tasks
     .filter((t) => t.dueDate === selectedDate)
     .sort((a, b) => (a.dueTime ?? "99:99").localeCompare(b.dueTime ?? "99:99"));
+  const dayForecast = forecast?.find((f) => f.date === selectedDate) ?? null;
 
   const navLabel =
     viewMode === "day"
@@ -172,6 +178,8 @@ export default function CalendarPage() {
             <ChevronRightIcon className="h-6 w-6" />
           </button>
         </div>
+
+        {viewMode === "day" && <WeatherLocationPicker />}
       </div>
 
       {viewMode === "month" ? (
@@ -187,7 +195,7 @@ export default function CalendarPage() {
       ) : (
         <div key={viewMode + navLabel} className="min-h-0 flex-1 overflow-y-auto">
           {viewMode === "day" ? (
-            <CalendarDayView dayTasks={dayTasks} onToggle={toggleDone} />
+            <CalendarDayView dayTasks={dayTasks} onToggle={toggleDone} weatherDay={dayForecast} />
           ) : (
             <CalendarWeekView
               weekDays={weekDays}

@@ -1,8 +1,10 @@
 "use client";
 
 import type { Task } from "@/lib/types";
+import type { DailyForecast } from "@/lib/weather";
 import { CalendarIcon, CheckIcon } from "@/components/icons";
 import { EmptyState } from "@/components/empty-state";
+import { WeatherDayCard } from "@/components/weather-day-card";
 import { formatDuration, timeToMinutes } from "@/lib/date-utils";
 
 const START_HOUR = 6;
@@ -38,9 +40,11 @@ function TaskRow({ task, onToggle }: { task: Task; onToggle: (id: string) => voi
 export function CalendarDayView({
   dayTasks,
   onToggle,
+  weatherDay,
 }: {
   dayTasks: Task[];
   onToggle: (id: string) => void;
+  weatherDay?: DailyForecast | null;
 }) {
   const untimed = dayTasks.filter((t) => !t.dueTime);
   const timed = dayTasks.filter((t) => t.dueTime);
@@ -48,6 +52,11 @@ export function CalendarDayView({
   if (dayTasks.length === 0) {
     return (
       <div className="flex h-full flex-col">
+        {weatherDay && (
+          <div className="px-5 pt-2">
+            <WeatherDayCard day={weatherDay} />
+          </div>
+        )}
         <EmptyState
           icon={CalendarIcon}
           title="Тут поки порожньо"
@@ -59,6 +68,8 @@ export function CalendarDayView({
 
   return (
     <div className="flex flex-col gap-4 p-5 pt-2">
+      {weatherDay && <WeatherDayCard day={weatherDay} />}
+
       {untimed.length > 0 && (
         <ul className="flex flex-col gap-2">
           {untimed.map((task) => (

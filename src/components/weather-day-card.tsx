@@ -1,0 +1,36 @@
+"use client";
+
+import type { DailyForecast } from "@/lib/weather";
+import { getHikeAdvice, getWeatherInfo } from "@/lib/weather";
+
+export function WeatherDayCard({ day }: { day: DailyForecast }) {
+  const { icon, label } = getWeatherInfo(day.weatherCode);
+  const advice = getHikeAdvice(day);
+
+  const adviceStyles: Record<string, string> = {
+    good: "bg-brand-green/10 text-brand-green",
+    moderate: "bg-amber-500/10 text-amber-600",
+    bad: "bg-red-600/10 text-red-600",
+  };
+
+  return (
+    <div className="flex flex-col gap-3 rounded-md bg-brand-surface p-4 shadow-card">
+      <div className="flex items-center gap-3">
+        <span className="text-3xl">{icon}</span>
+        <div className="flex-1">
+          <p className="font-condensed text-sm font-bold uppercase tracking-wide text-brand-text">
+            {label}
+          </p>
+          <p className="text-xs text-brand-muted">
+            {Math.round(day.tempMin)}° / {Math.round(day.tempMax)}° · 💧{day.precipitationProbability}%
+            · 💨{Math.round(day.windSpeedMax)} км/год
+          </p>
+        </div>
+      </div>
+
+      <p className={`rounded-md px-3 py-2 text-sm font-medium ${adviceStyles[advice.level]}`}>
+        {advice.text}
+      </p>
+    </div>
+  );
+}
