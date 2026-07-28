@@ -34,7 +34,7 @@ function getCurrentPosition(): Promise<LatLon> {
             "Не вдалося визначити ваше місцезнаходження. Вкажіть точку відправлення текстом.",
           ),
         ),
-      { enableHighAccuracy: true, timeout: 10000 },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
     );
   });
 }
@@ -104,7 +104,11 @@ export function NavigationScreen() {
       setLoading(true);
       setError("");
       try {
-        let fromCoords = urlFromCoords;
+        // Prefer the ambient location already tracked for the "you are here"
+        // dot — it has no strict timeout and has often already resolved by
+        // the time a route is requested. Only fall back to a fresh one-off
+        // request (which can time out on desktops without GPS) if needed.
+        let fromCoords = urlFromCoords ?? (!fromText ? myLocation : null);
         if (!fromText && !fromCoords) {
           fromCoords = await getCurrentPosition();
         }
@@ -133,6 +137,9 @@ export function NavigationScreen() {
     return () => {
       cancelled = true;
     };
+    // myLocation intentionally excluded: read as a fallback at the time this
+    // fires, not a trigger to re-fetch the route every time it ticks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toText, fromText, toLatStr, toLonStr, fromLatStr, fromLonStr]);
 
   // Ambient tracking so the map can show "you are here" as soon as this screen opens,
