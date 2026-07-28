@@ -26,7 +26,6 @@ async function search(text: string, limit: number): Promise<GeoPoint[]> {
     q: text,
     format: "jsonv2",
     limit: String(limit),
-    countrycodes: "ua",
     "accept-language": "uk",
   })}`;
   const response = await fetch(url, {
