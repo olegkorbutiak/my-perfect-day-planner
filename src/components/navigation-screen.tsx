@@ -105,6 +105,13 @@ export function NavigationScreen() {
     return () => navigator.geolocation.clearWatch(id);
   }, []);
 
+  // Keep the editable fields in sync with the URL, e.g. after a voice/text command
+  // routes here with ?to=...&from=..., so the inputs show what's currently planned.
+  useEffect(() => {
+    setManualTo(toText);
+    setManualFrom(fromText);
+  }, [toText, fromText]);
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTo.trim()) return;
@@ -115,7 +122,6 @@ export function NavigationScreen() {
 
   const distanceKm = plan ? (plan.distanceMeters / 1000).toFixed(1) : null;
   const durationMin = plan ? Math.round(plan.durationSeconds / 60) : null;
-  const showForm = !toText;
 
   return (
     <div className="flex h-full flex-col">
@@ -123,15 +129,6 @@ export function NavigationScreen() {
         <p className="font-condensed text-xs font-bold uppercase tracking-wide text-brand-green">
           Навігація
         </p>
-        {!showForm && (
-          <button
-            type="button"
-            onClick={() => router.push("/navigation")}
-            className="font-condensed text-xs font-bold uppercase tracking-wide text-brand-muted underline underline-offset-2 transition active:scale-95"
-          >
-            Новий маршрут
-          </button>
-        )}
       </div>
 
       <div className="relative min-h-0 flex-1 px-5 pb-5">
@@ -144,17 +141,17 @@ export function NavigationScreen() {
         </div>
 
         <div className="pointer-events-none absolute inset-x-5 bottom-5 flex flex-col gap-3">
-          {showForm && (
-            <form
-              onSubmit={handleManualSubmit}
-              className="pointer-events-auto flex flex-col gap-3 rounded-md bg-white/95 p-4 shadow-card-hover backdrop-blur"
-            >
+          <form
+            onSubmit={handleManualSubmit}
+            className="pointer-events-auto flex flex-col gap-2 rounded-md bg-white/95 p-3 shadow-card-hover backdrop-blur"
+          >
+            <div className="flex gap-2">
               <input
                 type="text"
                 value={manualFrom}
                 onChange={(e) => setManualFrom(e.target.value)}
-                placeholder="Звідки (необов'язково — поточне місце)"
-                className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+                placeholder="Звідки (поточне місце)"
+                className="h-11 flex-1 rounded-md bg-neutral-100 px-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
               />
               <input
                 type="text"
@@ -162,30 +159,26 @@ export function NavigationScreen() {
                 onChange={(e) => setManualTo(e.target.value)}
                 placeholder="Куди?"
                 required
-                className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+                className="h-11 flex-1 rounded-md bg-neutral-100 px-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
               />
-              <button
-                type="submit"
-                disabled={!manualTo.trim()}
-                className="flex h-14 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-base font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
-              >
-                <NavigationIcon className="h-4 w-4" />
-                Проклади маршрут
-              </button>
-              <p className="text-center text-xs text-brand-muted">
-                Або просто скажіть чи напишіть на екрані «Занотувати»: «проклади маршрут зі
-                Львова до Стрия».
-              </p>
-            </form>
-          )}
+            </div>
+            <button
+              type="submit"
+              disabled={!manualTo.trim()}
+              className="flex h-12 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-sm font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
+            >
+              <NavigationIcon className="h-4 w-4" />
+              Проклади маршрут
+            </button>
+          </form>
 
-          {!showForm && loading && (
+          {loading && (
             <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-brand-muted shadow-card-hover backdrop-blur">
               Будую маршрут…
             </div>
           )}
 
-          {!showForm && error && !loading && (
+          {error && !loading && (
             <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-red-600 shadow-card-hover backdrop-blur">
               {error}
             </div>
