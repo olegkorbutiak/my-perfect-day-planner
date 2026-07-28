@@ -294,7 +294,10 @@ export function NavigationScreen() {
               </p>
               <button
                 type="button"
-                onClick={() => setDriving(false)}
+                onClick={() => {
+                  setDriving(false);
+                  setEditing(true);
+                }}
                 className="shrink-0 rounded-md bg-red-600 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-wide text-white transition active:scale-95"
               >
                 Зупинити
