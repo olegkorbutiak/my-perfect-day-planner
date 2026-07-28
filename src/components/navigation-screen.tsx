@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeftIcon } from "@/components/icons";
+import { NavigationIcon } from "@/components/icons";
 
 const RouteMap = dynamic(() => import("@/components/route-map").then((m) => m.RouteMap), {
   ssr: false,
@@ -43,16 +43,17 @@ export function NavigationScreen() {
   const toText = searchParams.get("to") ?? "";
   const fromText = searchParams.get("from") ?? "";
 
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(Boolean(toText));
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<RoutePlan | null>(null);
   const [driving, setDriving] = useState(false);
   const [liveCoord, setLiveCoord] = useState<LatLon | null>(null);
+  const [manualFrom, setManualFrom] = useState("");
+  const [manualTo, setManualTo] = useState("");
   const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!toText) {
-      setError("Немає кінцевої точки маршруту.");
       setLoading(false);
       return;
     }
@@ -116,42 +117,89 @@ export function NavigationScreen() {
     setLiveCoord(null);
   };
 
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!manualTo.trim()) return;
+    const params = new URLSearchParams({ to: manualTo.trim() });
+    if (manualFrom.trim()) params.set("from", manualFrom.trim());
+    router.push(`/navigation?${params.toString()}`);
+  };
+
   const distanceKm = plan ? (plan.distanceMeters / 1000).toFixed(1) : null;
   const durationMin = plan ? Math.round(plan.durationSeconds / 60) : null;
+  const showForm = !toText;
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center gap-3 px-5 pt-6 pb-3">
-        <button
-          type="button"
-          onClick={() => router.push("/")}
-          aria-label="Назад"
-          className="flex h-9 w-9 items-center justify-center rounded-md text-brand-text transition active:scale-90"
-        >
-          <ChevronLeftIcon className="h-6 w-6" />
-        </button>
+      <div className="flex items-center justify-between px-5 pt-6 pb-3">
         <p className="font-condensed text-xs font-bold uppercase tracking-wide text-brand-green">
           Навігація
         </p>
+        {!showForm && (
+          <button
+            type="button"
+            onClick={() => router.push("/navigation")}
+            className="font-condensed text-xs font-bold uppercase tracking-wide text-brand-muted underline underline-offset-2 transition active:scale-95"
+          >
+            Новий маршрут
+          </button>
+        )}
       </div>
 
-      <div className="relative min-h-0 flex-1 px-5">
-        <div className="h-full w-full overflow-hidden rounded-md bg-neutral-100">
-          {loading && (
-            <div className="flex h-full items-center justify-center text-sm text-brand-muted">
-              Будую маршрут…
-            </div>
-          )}
-          {error && !loading && (
-            <div className="flex h-full items-center justify-center px-6 text-center text-sm text-red-600">
-              {error}
-            </div>
-          )}
-          {plan && !loading && !error && (
-            <RouteMap from={plan.from} to={plan.to} geometry={plan.geometry} liveCoord={liveCoord} />
-          )}
+      {showForm ? (
+        <form onSubmit={handleManualSubmit} className="flex flex-col gap-3 px-5">
+          <input
+            type="text"
+            value={manualFrom}
+            onChange={(e) => setManualFrom(e.target.value)}
+            placeholder="Звідки (необов'язково — поточне місце)"
+            className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+          />
+          <input
+            type="text"
+            value={manualTo}
+            onChange={(e) => setManualTo(e.target.value)}
+            placeholder="Куди?"
+            required
+            className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+          />
+          <button
+            type="submit"
+            disabled={!manualTo.trim()}
+            className="flex h-14 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-base font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
+          >
+            <NavigationIcon className="h-4 w-4" />
+            Проклади маршрут
+          </button>
+          <p className="text-center text-xs text-brand-muted">
+            Або просто скажіть чи напишіть на екрані «Занотувати»: «проклади маршрут зі Львова до
+            Стрия».
+          </p>
+        </form>
+      ) : (
+        <div className="relative min-h-0 flex-1 px-5">
+          <div className="h-full w-full overflow-hidden rounded-md bg-neutral-100">
+            {loading && (
+              <div className="flex h-full items-center justify-center text-sm text-brand-muted">
+                Будую маршрут…
+              </div>
+            )}
+            {error && !loading && (
+              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-red-600">
+                {error}
+              </div>
+            )}
+            {plan && !loading && !error && (
+              <RouteMap
+                from={plan.from}
+                to={plan.to}
+                geometry={plan.geometry}
+                liveCoord={liveCoord}
+              />
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {plan && !loading && !error && (
         <div className="flex flex-col gap-3 px-5 pb-5 pt-3">

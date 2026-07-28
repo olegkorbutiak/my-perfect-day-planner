@@ -196,6 +196,14 @@ export function ChartIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function NavigationIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M3 11 22 2 13 21 11 13Z" />
+    </Svg>
+  );
+}
+
 export function UserIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
