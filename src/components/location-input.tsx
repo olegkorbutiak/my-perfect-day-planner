@@ -13,6 +13,7 @@ export function LocationInput({
   onSelect,
   placeholder,
   dotColor,
+  number,
   required,
   onLocate,
 }: {
@@ -21,6 +22,10 @@ export function LocationInput({
   onSelect: (result: LocationSuggestion) => void;
   placeholder: string;
   dotColor: string;
+  /** Stop position (1 = start, 2, 3, ... = destination/waypoints) shown as a
+   * numbered badge instead of a plain color dot, so a multi-stop route's
+   * order is clear at a glance. */
+  number: number;
   required?: boolean;
   /** Show a "use my location" button inside the field (right side) and call
    * this when it's tapped. */
@@ -73,9 +78,11 @@ export function LocationInput({
   return (
     <div className="relative flex items-center">
       <span
-        className="pointer-events-none absolute left-3.5 h-2 w-2 rounded-full"
+        className="pointer-events-none absolute left-2 flex h-5 w-5 items-center justify-center rounded-full font-condensed text-[10px] font-bold text-white"
         style={{ backgroundColor: dotColor }}
-      />
+      >
+        {number}
+      </span>
       <input
         type="text"
         value={value}
@@ -84,7 +91,7 @@ export function LocationInput({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         required={required}
-        className={`h-11 w-full rounded-md bg-neutral-100 pl-9 text-sm text-brand-text outline-none placeholder:text-neutral-400 ${
+        className={`h-11 w-full rounded-md bg-neutral-100 pl-10 text-sm text-brand-text outline-none placeholder:text-neutral-400 ${
           onLocate ? "pr-10" : "pr-3"
         }`}
       />

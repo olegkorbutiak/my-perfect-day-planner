@@ -227,7 +227,9 @@ export function NavigationScreen() {
     () => (plan ? formatArrival(plan.durationSeconds) : null),
     [plan],
   );
-  const routeSummary = plan ? plan.stops.map((s) => s.name).join(" → ") : "";
+  const routeSummary = plan
+    ? plan.stops.map((s, i) => `${i + 1}. ${s.name}`).join(" → ")
+    : "";
 
   return (
     <div className="flex h-full flex-col">
@@ -276,6 +278,7 @@ export function NavigationScreen() {
                           onSelect={(result) => selectStop(index, result)}
                           placeholder={placeholder}
                           dotColor={dotColor}
+                          number={index + 1}
                           required={!isFirst}
                           onLocate={isFirst ? () => routeMapRef.current?.recenter() : undefined}
                         />

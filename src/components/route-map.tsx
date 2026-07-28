@@ -3,7 +3,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type * as LeafletNamespace from "leaflet";
-import type { CircleMarker, Map as LeafletMap, Polyline } from "leaflet";
+import type { CircleMarker, Map as LeafletMap, Marker, Polyline } from "leaflet";
 import { LocateIcon } from "@/components/icons";
 
 type LatLon = { lat: number; lon: number };
@@ -23,6 +23,16 @@ const UKRAINE_CENTER: [number, number] = [48.3794, 31.1656];
 const UKRAINE_ZOOM = 6;
 const LOCATION_ZOOM = 14;
 const DRIVING_ZOOM = 16;
+
+/** A small numbered circle badge marking a stop's position in the route order. */
+function createNumberedIcon(L: typeof LeafletNamespace, number: number, color: string) {
+  return L.divIcon({
+    html: `<div style="width:24px;height:24px;border-radius:9999px;background:${color};color:#fff;display:flex;align-items:center;justify-content:center;font-family:sans-serif;font-size:12px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.4);">${number}</div>`,
+    className: "",
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
 
 /** Closest point in a [lat, lon][] polyline to the given coordinate (plain
  * Euclidean comparison — good enough for picking "nearest", not for distance). */
@@ -58,7 +68,7 @@ export const RouteMap = forwardRef<
   const mapRef = useRef<LeafletMap | null>(null);
   const liveMarkerRef = useRef<CircleMarker | null>(null);
   const lineRef = useRef<Polyline | null>(null);
-  const stopMarkersRef = useRef<CircleMarker[]>([]);
+  const stopMarkersRef = useRef<Marker[]>([]);
   const centeredOnLocationRef = useRef(false);
   const wasFollowingRef = useRef(false);
   // True once the user drags the map by hand — pauses auto-panning to the live
@@ -114,11 +124,8 @@ export const RouteMap = forwardRef<
     stopMarkersRef.current = route.stops.map((stop, index) => {
       const color =
         index === 0 ? START_COLOR : index === route.stops.length - 1 ? END_COLOR : WAYPOINT_COLOR;
-      return L.circleMarker([stop.lat, stop.lon], {
-        radius: 8,
-        color,
-        fillColor: color,
-        fillOpacity: 1,
+      return L.marker([stop.lat, stop.lon], {
+        icon: createNumberedIcon(L, index + 1, color),
       }).addTo(map);
     });
 
