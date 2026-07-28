@@ -83,13 +83,18 @@ export function NavigationScreen() {
   const [manualTo, setManualTo] = useState("");
   const [manualFromCoords, setManualFromCoords] = useState<LatLon | null>(null);
   const [manualToCoords, setManualToCoords] = useState<LatLon | null>(null);
-  const [editing, setEditing] = useState(true);
+  const [editing, setEditing] = useState(!toText);
 
   useEffect(() => {
     if (!toText) {
       setLoading(false);
       return;
     }
+    // A route is being requested (URL already has ?to=...) — always show
+    // progress/errors for it instead of leaving the input form up, which
+    // otherwise silently swallowed failures (e.g. geolocation denied on
+    // desktop with no "Звідки" text) behind the still-visible form.
+    setEditing(false);
 
     let cancelled = false;
     const toCoords = parseCoord(toLatStr, toLonStr);
