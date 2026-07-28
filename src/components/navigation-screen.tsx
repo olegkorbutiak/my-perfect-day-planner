@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { NavigationIcon } from "@/components/icons";
 
 const RouteMap = dynamic(() => import("@/components/route-map").then((m) => m.RouteMap), {
@@ -47,10 +47,9 @@ export function NavigationScreen() {
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<RoutePlan | null>(null);
   const [driving, setDriving] = useState(false);
-  const [liveCoord, setLiveCoord] = useState<LatLon | null>(null);
+  const [myLocation, setMyLocation] = useState<LatLon | null>(null);
   const [manualFrom, setManualFrom] = useState("");
   const [manualTo, setManualTo] = useState("");
-  const watchIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!toText) {
@@ -94,28 +93,17 @@ export function NavigationScreen() {
     };
   }, [toText, fromText]);
 
+  // Ambient tracking so the map can show "you are here" as soon as this screen opens,
+  // independent of whether a route has been planned yet.
   useEffect(() => {
-    return () => {
-      if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-    };
-  }, []);
-
-  const handleStart = () => {
     if (!navigator.geolocation) return;
-    setDriving(true);
-    watchIdRef.current = navigator.geolocation.watchPosition(
-      (pos) => setLiveCoord({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
+    const id = navigator.geolocation.watchPosition(
+      (pos) => setMyLocation({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
       () => {},
       { enableHighAccuracy: true },
     );
-  };
-
-  const handleStop = () => {
-    if (watchIdRef.current !== null) navigator.geolocation.clearWatch(watchIdRef.current);
-    watchIdRef.current = null;
-    setDriving(false);
-    setLiveCoord(null);
-  };
+    return () => navigator.geolocation.clearWatch(id);
+  }, []);
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -146,89 +134,93 @@ export function NavigationScreen() {
         )}
       </div>
 
-      {showForm ? (
-        <form onSubmit={handleManualSubmit} className="flex flex-col gap-3 px-5">
-          <input
-            type="text"
-            value={manualFrom}
-            onChange={(e) => setManualFrom(e.target.value)}
-            placeholder="Звідки (необов'язково — поточне місце)"
-            className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+      <div className="relative min-h-0 flex-1 px-5 pb-5">
+        <div className="h-full w-full overflow-hidden rounded-md bg-neutral-100">
+          <RouteMap
+            route={plan}
+            liveCoord={myLocation}
+            follow={driving || (!plan && !loading)}
           />
-          <input
-            type="text"
-            value={manualTo}
-            onChange={(e) => setManualTo(e.target.value)}
-            placeholder="Куди?"
-            required
-            className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
-          />
-          <button
-            type="submit"
-            disabled={!manualTo.trim()}
-            className="flex h-14 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-base font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
-          >
-            <NavigationIcon className="h-4 w-4" />
-            Проклади маршрут
-          </button>
-          <p className="text-center text-xs text-brand-muted">
-            Або просто скажіть чи напишіть на екрані «Занотувати»: «проклади маршрут зі Львова до
-            Стрия».
-          </p>
-        </form>
-      ) : (
-        <div className="relative min-h-0 flex-1 px-5">
-          <div className="h-full w-full overflow-hidden rounded-md bg-neutral-100">
-            {loading && (
-              <div className="flex h-full items-center justify-center text-sm text-brand-muted">
-                Будую маршрут…
-              </div>
-            )}
-            {error && !loading && (
-              <div className="flex h-full items-center justify-center px-6 text-center text-sm text-red-600">
-                {error}
-              </div>
-            )}
-            {plan && !loading && !error && (
-              <RouteMap
-                from={plan.from}
-                to={plan.to}
-                geometry={plan.geometry}
-                liveCoord={liveCoord}
-              />
-            )}
-          </div>
         </div>
-      )}
 
-      {plan && !loading && !error && (
-        <div className="flex flex-col gap-3 px-5 pb-5 pt-3">
-          <p className="text-center text-sm text-brand-muted">
-            {plan.from.name} → {plan.to.name}
-            <br />
-            <span className="font-condensed font-bold uppercase tracking-wide text-brand-text">
-              {distanceKm} км · {durationMin} хв
-            </span>
-          </p>
-          {!driving ? (
-            <button
-              type="button"
-              onClick={handleStart}
-              className="h-16 rounded-md bg-brand-green text-center font-condensed text-lg font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong"
+        <div className="pointer-events-none absolute inset-x-5 bottom-5 flex flex-col gap-3">
+          {showForm && (
+            <form
+              onSubmit={handleManualSubmit}
+              className="pointer-events-auto flex flex-col gap-3 rounded-md bg-white/95 p-4 shadow-card-hover backdrop-blur"
             >
-              Поїхали!
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleStop}
-              className="h-16 rounded-md bg-red-600 text-center font-condensed text-lg font-bold uppercase tracking-wide text-white transition-all duration-200 active:scale-[0.98]"
-            >
-              Зупинити
-            </button>
+              <input
+                type="text"
+                value={manualFrom}
+                onChange={(e) => setManualFrom(e.target.value)}
+                placeholder="Звідки (необов'язково — поточне місце)"
+                className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+              />
+              <input
+                type="text"
+                value={manualTo}
+                onChange={(e) => setManualTo(e.target.value)}
+                placeholder="Куди?"
+                required
+                className="h-12 rounded-md bg-neutral-100 px-4 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+              />
+              <button
+                type="submit"
+                disabled={!manualTo.trim()}
+                className="flex h-14 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-base font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
+              >
+                <NavigationIcon className="h-4 w-4" />
+                Проклади маршрут
+              </button>
+              <p className="text-center text-xs text-brand-muted">
+                Або просто скажіть чи напишіть на екрані «Занотувати»: «проклади маршрут зі
+                Львова до Стрия».
+              </p>
+            </form>
+          )}
+
+          {!showForm && loading && (
+            <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-brand-muted shadow-card-hover backdrop-blur">
+              Будую маршрут…
+            </div>
+          )}
+
+          {!showForm && error && !loading && (
+            <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-red-600 shadow-card-hover backdrop-blur">
+              {error}
+            </div>
+          )}
+
+          {plan && !loading && !error && (
+            <div className="pointer-events-auto flex flex-col gap-3 rounded-md bg-white/95 p-4 shadow-card-hover backdrop-blur">
+              <p className="text-center text-sm text-brand-muted">
+                {plan.from.name} → {plan.to.name}
+                <br />
+                <span className="font-condensed font-bold uppercase tracking-wide text-brand-text">
+                  {distanceKm} км · {durationMin} хв
+                </span>
+              </p>
+              {!driving ? (
+                <button
+                  type="button"
+                  onClick={() => setDriving(true)}
+                  className="h-16 rounded-md bg-brand-green text-center font-condensed text-lg font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong"
+                >
+                  Поїхали!
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setDriving(false)}
+                  className="h-16 rounded-md bg-red-600 text-center font-condensed text-lg font-bold uppercase tracking-wide text-white transition-all duration-200 active:scale-[0.98]"
+                >
+                  Зупинити
+                </button>
+              )}
+            </div>
           )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
