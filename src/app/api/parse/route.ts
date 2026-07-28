@@ -18,7 +18,8 @@ const WEEKDAY_KEYS = [
 
 const SYSTEM_PROMPT =
   "Ти розбираєш нотатку користувача українською мовою на окремі конкретні задачі, визначаючи для кожної дату й час. " +
-  'Поверни лише JSON-об\'єкт форми {"tasks": [{"title": "...", "date": "today", "time": "15:00"}], "actions": []}. ' +
+  'Поверни лише JSON-об\'єкт форми {"tasks": [{"title": "...", "date": "today", "time": "15:00"}], "actions": [], ' +
+  '"route": null}. ' +
   '"title" — природна, змістовна назва задачі чи події зі збереженням контексту (з ким, де, що саме) з вхідного ' +
   'тексту — напр. "Зустріч з колегами", а не просто "Зустріч". Без слів на позначення дати/часу всередині, без нумерації. ' +
   '"date" — одне з: "today" (сьогодні), "tomorrow" (завтра), "day_after_tomorrow" (післязавтра), ' +
@@ -60,7 +61,17 @@ const SYSTEM_PROMPT =
   "(збігається головний предмет дії — з ким/куди/що, а не лише один загальний іменник). Якщо сумніваєшся або " +
   "жодна задача явно не підходить — НЕ додавай action і НІКОЛИ не вигадуй id, якого немає у списку. Той самий " +
   "текст може одночасно містити і нову задачу, і команду про існуючу. Якщо команд про існуючі задачі немає — " +
-  "\"actions\": [].";
+  "\"actions\": []. " +
+  "Окремо: текст може бути ПРОХАННЯМ ПРОКЛАСТИ МАРШРУТ/НАВІГАЦІЮ між двома місцями — напр. \"проклади маршрут " +
+  "зі Львова до Стрия\", \"як доїхати з Києва в Одесу\", \"побудуй найшвидший маршрут до аеропорту\", \"навігація " +
+  "до вокзалу\". Це НЕ задача і НЕ дія над існуючою задачею — у такому разі поверни \"tasks\": [] і " +
+  "\"actions\": [], а \"route\" заповни об'єктом {\"from\": \"...\"|null, \"to\": \"...\"}: \"to\" — кінцева " +
+  "точка (обов'язково), \"from\" — початкова точка, якщо явно вказана в тексті (напр. \"зі Львова\"), інакше " +
+  "null (тоді буде використано поточне місезнаходження користувача). Обидві назви місць переведи у " +
+  "НАЗИВНИЙ відмінок українською (напр. \"зі Львова\" → \"Львів\", \"до Стрия\" → \"Стрий\", \"в Одесу\" → " +
+  "\"Одеса\") — саме так, як пишеться назва населеного пункту в довіднику, без прийменників і відмінкових " +
+  "закінчень, оскільки за цим текстом шукатимуться географічні координати. Якщо в тексті немає прохання " +
+  "прокласти маршрут — \"route\": null.";
 
 const ABSOLUTE_DATE_PATTERN = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const ACTION_TYPES = ["reschedule", "cancel", "complete", "uncomplete"] as const;
@@ -99,7 +110,18 @@ function formatExistingTasks(existingTasks: ExistingTask[]): string {
     .join("\n");
 }
 
-type RequestResult = { tasks: ParsedTask[]; actions: ParsedAction[]; rateLimited: boolean };
+type ParsedRoute = { from: string | null; to: string };
+
+function isParsedRoute(value: unknown): value is { from: unknown; to: unknown } {
+  return typeof value === "object" && value !== null;
+}
+
+type RequestResult = {
+  tasks: ParsedTask[];
+  actions: ParsedAction[];
+  route: ParsedRoute | null;
+  rateLimited: boolean;
+};
 
 async function requestTasks(
   apiKey: string,
@@ -128,7 +150,7 @@ async function requestTasks(
     }),
   }).catch(() => null);
 
-  const empty = { tasks: [], actions: [], rateLimited: false };
+  const empty = { tasks: [], actions: [], route: null, rateLimited: false };
   if (!response) return empty;
   if (response.status === 429) return { ...empty, rateLimited: true };
   if (!response.ok) return empty;
@@ -180,7 +202,20 @@ async function requestTasks(
         })
     : [];
 
-  return { tasks, actions, rateLimited: false };
+  const rawRoute = (parsed as { route?: unknown })?.route;
+  const route: ParsedRoute | null =
+    isParsedRoute(rawRoute) &&
+    typeof rawRoute.to === "string" &&
+    rawRoute.to.trim() &&
+    (rawRoute.from === null || (typeof rawRoute.from === "string" && rawRoute.from.trim()))
+      ? {
+          to: sanitizeUkrainian(rawRoute.to.trim()),
+          from:
+            typeof rawRoute.from === "string" ? sanitizeUkrainian(rawRoute.from.trim()) : null,
+        }
+      : null;
+
+  return { tasks, actions, route, rateLimited: false };
 }
 
 function toDueDate(date: string): string | null {
@@ -227,19 +262,21 @@ export async function POST(request: Request) {
 
   let tasks: ParsedTask[] = [];
   let actions: ParsedAction[] = [];
+  let route: ParsedRoute | null = null;
   let rateLimited = false;
   for (
     let attempt = 0;
-    attempt < MAX_ATTEMPTS && tasks.length === 0 && actions.length === 0 && !rateLimited;
+    attempt < MAX_ATTEMPTS && tasks.length === 0 && actions.length === 0 && !route && !rateLimited;
     attempt++
   ) {
     const result = await requestTasks(apiKey, model, text, existingTasks);
     tasks = result.tasks;
     actions = result.actions;
+    route = result.route;
     rateLimited = result.rateLimited;
   }
 
-  if (tasks.length === 0 && actions.length === 0) {
+  if (tasks.length === 0 && actions.length === 0 && !route) {
     const error = rateLimited
       ? "Перевищено денний ліміт безкоштовних AI-запитів. Спробуйте пізніше або скористайтеся «Зберегти без AI»."
       : "AI не зміг розпізнати задачі";
@@ -261,5 +298,6 @@ export async function POST(request: Request) {
         return { id: a.id, type: a.type };
       })
       .filter((a): a is NonNullable<typeof a> => a !== null),
+    route,
   });
 }

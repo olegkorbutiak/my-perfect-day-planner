@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckIcon, MicIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { AccountButton } from "@/components/account-button";
@@ -23,6 +24,7 @@ type ParsedAction = {
 };
 
 export default function CapturePage() {
+  const router = useRouter();
   const { tasks, addTask, addTasks, rescheduleTask, removeTask, toggleDone } = useTasks();
   const [text, setText] = useState("");
   const [baseText, setBaseText] = useState("");
@@ -89,9 +91,21 @@ export default function CapturePage() {
       const data: {
         tasks?: { title: string; dueDate: string | null; dueTime: string | null }[];
         actions?: ParsedAction[];
+        route?: { from: string | null; to: string } | null;
         error?: string;
       } = await response.json();
-      if (!response.ok || (!data.tasks && !data.actions)) throw new Error(data.error);
+      if (!response.ok || (!data.tasks && !data.actions && !data.route)) {
+        throw new Error(data.error);
+      }
+
+      if (data.route) {
+        setText("");
+        setBaseText("");
+        const params = new URLSearchParams({ to: data.route.to });
+        if (data.route.from) params.set("from", data.route.from);
+        router.push(`/navigation?${params.toString()}`);
+        return;
+      }
 
       const newTasks = data.tasks ?? [];
       const newActions = data.actions ?? [];
