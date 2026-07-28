@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { CheckIcon, MicIcon } from "@/components/icons";
 import { Logo } from "@/components/logo";
 import { AccountButton } from "@/components/account-button";
-import { InspirationQuote } from "@/components/inspiration-quote";
 import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
 
@@ -149,11 +148,6 @@ export default function CapturePage() {
           placeholder="Що на думці, господарю?"
           className="mt-2 w-full resize-none bg-transparent text-2xl leading-relaxed text-brand-text outline-none transition-colors placeholder:text-neutral-300 selection:bg-brand-green/20 caret-brand-green"
         />
-        {!text.trim() && (
-          <div className="mt-auto animate-fade-up pb-4">
-            <InspirationQuote />
-          </div>
-        )}
       </div>
 
       <div className="flex flex-col items-center gap-3 px-5 pb-5">

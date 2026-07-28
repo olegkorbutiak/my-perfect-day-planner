@@ -3,6 +3,7 @@ import { Roboto, Roboto_Condensed } from "next/font/google";
 import { BottomNav } from "@/components/bottom-nav";
 import { LionWatermark } from "@/components/lion-watermark";
 import { MountainSkyline } from "@/components/mountain-skyline";
+import { PullToRefresh } from "@/components/pull-to-refresh";
 import { ReminderScheduler } from "@/components/reminder-scheduler";
 import { ServiceWorkerRegister } from "@/components/service-worker-register";
 import { AuthProvider } from "@/lib/auth-context";
@@ -65,7 +66,7 @@ export default function RootLayout({
             <div className="relative flex h-dvh flex-col overflow-hidden overscroll-none">
               <MountainSkyline />
               <LionWatermark />
-              <main className="relative min-h-0 flex-1 overflow-y-auto">{children}</main>
+              <PullToRefresh>{children}</PullToRefresh>
               <BottomNav />
             </div>
           </TasksProvider>

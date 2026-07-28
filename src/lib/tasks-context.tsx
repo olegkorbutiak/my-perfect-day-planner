@@ -106,7 +106,7 @@ type TasksContextValue = {
   removeTask: (id: string) => void;
   restoreTask: (id: string) => void;
   deleteForever: (id: string) => void;
-  pullGoogleCalendar: () => void;
+  pullGoogleCalendar: () => Promise<void>;
 };
 
 const TasksContext = createContext<TasksContextValue | null>(null);
@@ -421,19 +421,22 @@ export function TasksProvider({ children }: { children: React.ReactNode }) {
 
   // Pulls events from the user's "My Perfect Day Planner" Google calendar
   // and reconciles them into tasks (new events become tasks, edited events
-  // update their task, removed events archive their task).
-  const pullGoogleCalendar = useCallback(() => {
+  // update their task, removed events archive their task). Returns a
+  // promise so callers (e.g. pull-to-refresh) can await completion.
+  const pullGoogleCalendar = useCallback(async () => {
     if (!userId || !supabase) return;
-    supabase.auth.getSession().then(({ data }) => {
-      const token = data.session?.access_token;
-      if (!token) return;
-      fetch("/api/calendar-pull", {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    try {
+      await fetch("/api/calendar-pull", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-      })
-        .then(() => refreshFromCloud())
-        .catch((err) => console.error("Calendar pull failed", err));
-    });
+      });
+      await refreshFromCloud();
+    } catch (err) {
+      console.error("Calendar pull failed", err);
+    }
   }, [userId, refreshFromCloud]);
 
   return (
