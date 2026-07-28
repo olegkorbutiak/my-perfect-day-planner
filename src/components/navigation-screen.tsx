@@ -3,9 +3,10 @@
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { NavigationIcon } from "@/components/icons";
+import { NavigationIcon, PlusIcon, XIcon } from "@/components/icons";
 import { LocationInput, type LocationSuggestion } from "@/components/location-input";
 import type { RouteMapHandle } from "@/components/route-map";
+import { buildRouteSearchParams, parseRouteSearchParams, type RouteStop } from "@/lib/route-url";
 import { formatDuration } from "@/lib/date-utils";
 
 const RouteMap = dynamic(() => import("@/components/route-map").then((m) => m.RouteMap), {
@@ -14,12 +15,22 @@ const RouteMap = dynamic(() => import("@/components/route-map").then((m) => m.Ro
 
 type LatLon = { lat: number; lon: number };
 type RoutePlan = {
-  from: LatLon & { name: string };
-  to: LatLon & { name: string };
+  stops: (LatLon & { name: string })[];
   geometry: [number, number][];
   distanceMeters: number;
   durationSeconds: number;
 };
+type FormStop = { text: string; coords: LatLon | null };
+
+const EMPTY_STOPS: FormStop[] = [
+  { text: "", coords: null },
+  { text: "", coords: null },
+];
+
+// Each stop needing geocoding costs ~1s (self-throttled Nominatim requests,
+// run one at a time) plus adds to the OSRM request — cap it to keep route
+// building reasonably fast.
+const MAX_STOPS = 8;
 
 function getCurrentPosition(): Promise<LatLon> {
   return new Promise((resolve, reject) => {
@@ -58,71 +69,65 @@ function formatArrival(durationSeconds: number): string {
   return `${date} о ${time}`;
 }
 
-function parseCoord(latStr: string | null, lonStr: string | null): LatLon | null {
-  if (!latStr || !lonStr) return null;
-  const lat = Number(latStr);
-  const lon = Number(lonStr);
-  return Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : null;
+function toFormStops(stops: RouteStop[]): FormStop[] {
+  return stops.length >= 2
+    ? stops.map((s) => ({ text: s.text, coords: s.coords }))
+    : EMPTY_STOPS.map((s) => ({ ...s }));
 }
 
 export function NavigationScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const toText = searchParams.get("to") ?? "";
-  const fromText = searchParams.get("from") ?? "";
-  const toLatStr = searchParams.get("toLat");
-  const toLonStr = searchParams.get("toLon");
-  const fromLatStr = searchParams.get("fromLat");
-  const fromLonStr = searchParams.get("fromLon");
+  const searchParamsKey = searchParams.toString();
+  const urlStops = useMemo(() => parseRouteSearchParams(searchParams), [searchParamsKey]);
+  const hasRouteRequest =
+    urlStops.length >= 2 && urlStops[urlStops.length - 1].text.trim().length > 0;
 
-  const [loading, setLoading] = useState(Boolean(toText));
+  const [loading, setLoading] = useState(hasRouteRequest);
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<RoutePlan | null>(null);
   const [driving, setDriving] = useState(false);
   const [myLocation, setMyLocation] = useState<LatLon | null>(null);
-  const [manualFrom, setManualFrom] = useState("");
-  const [manualTo, setManualTo] = useState("");
-  const [manualFromCoords, setManualFromCoords] = useState<LatLon | null>(null);
-  const [manualToCoords, setManualToCoords] = useState<LatLon | null>(null);
-  const [editing, setEditing] = useState(!toText);
+  const [manualStops, setManualStops] = useState<FormStop[]>(() => toFormStops(urlStops));
+  const [editing, setEditing] = useState(!hasRouteRequest);
   const routeMapRef = useRef<RouteMapHandle>(null);
 
   useEffect(() => {
-    if (!toText) {
+    if (!hasRouteRequest) {
       setLoading(false);
       return;
     }
-    // A route is being requested (URL already has ?to=...) — always show
+    // A route is being requested (URL already has ?stop=...) — always show
     // progress/errors for it instead of leaving the input form up, which
     // otherwise silently swallowed failures (e.g. geolocation denied on
     // desktop with no "Звідки" text) behind the still-visible form.
     setEditing(false);
 
     let cancelled = false;
-    const toCoords = parseCoord(toLatStr, toLonStr);
-    const urlFromCoords = parseCoord(fromLatStr, fromLonStr);
 
     (async () => {
       setLoading(true);
       setError("");
       try {
+        const first = urlStops[0];
         // Prefer the ambient location already tracked for the "you are here"
         // dot — it has no strict timeout and has often already resolved by
         // the time a route is requested. Only fall back to a fresh one-off
         // request (which can time out on desktops without GPS) if needed.
-        let fromCoords = urlFromCoords ?? (!fromText ? myLocation : null);
-        if (!fromText && !fromCoords) {
-          fromCoords = await getCurrentPosition();
+        let firstCoords = first.coords ?? (!first.text ? myLocation : null);
+        if (!first.text && !firstCoords) {
+          firstCoords = await getCurrentPosition();
         }
+
+        const stopsPayload = urlStops.map((stop, index) => ({
+          text: stop.text || undefined,
+          coords: (index === 0 ? firstCoords : stop.coords) ?? undefined,
+        }));
+
         const response = await fetch("/api/route-plan", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            to: toText,
-            from: fromText || undefined,
-            fromCoords: fromCoords ?? undefined,
-            toCoords: toCoords ?? undefined,
-          }),
+          body: JSON.stringify({ stops: stopsPayload }),
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "Не вдалося побудувати маршрут");
@@ -142,7 +147,7 @@ export function NavigationScreen() {
     // myLocation intentionally excluded: read as a fallback at the time this
     // fires, not a trigger to re-fetch the route every time it ticks.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [toText, fromText, toLatStr, toLonStr, fromLatStr, fromLonStr]);
+  }, [searchParamsKey]);
 
   // Ambient tracking so the map can show "you are here" as soon as this screen opens,
   // independent of whether a route has been planned yet.
@@ -157,13 +162,11 @@ export function NavigationScreen() {
   }, []);
 
   // Keep the editable fields in sync with the URL, e.g. after a voice/text command
-  // routes here with ?to=...&from=..., so the inputs show what's currently planned.
+  // routes here with ?stop=..., so the inputs show what's currently planned.
   useEffect(() => {
-    setManualTo(toText);
-    setManualFrom(fromText);
-    setManualToCoords(parseCoord(toLatStr, toLonStr));
-    setManualFromCoords(parseCoord(fromLatStr, fromLonStr));
-  }, [toText, fromText, toLatStr, toLonStr, fromLatStr, fromLonStr]);
+    setManualStops(toFormStops(urlStops));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParamsKey]);
 
   // Collapse the input form into a compact summary once a route is ready, so the
   // map (route + live position) isn't mostly covered by the overlay. Re-expand
@@ -172,33 +175,49 @@ export function NavigationScreen() {
     if (plan) setEditing(false);
   }, [plan]);
   useEffect(() => {
-    if (!toText) setEditing(true);
-  }, [toText]);
+    if (!hasRouteRequest) setEditing(true);
+  }, [hasRouteRequest]);
+
+  const resetForm = () => {
+    setManualStops(EMPTY_STOPS.map((s) => ({ ...s })));
+  };
 
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!manualTo.trim()) return;
-    const params = new URLSearchParams({ to: manualTo.trim() });
-    if (manualFrom.trim()) params.set("from", manualFrom.trim());
-    if (manualToCoords) {
-      params.set("toLat", String(manualToCoords.lat));
-      params.set("toLon", String(manualToCoords.lon));
-    }
-    if (manualFromCoords) {
-      params.set("fromLat", String(manualFromCoords.lat));
-      params.set("fromLon", String(manualFromCoords.lon));
-    }
+    const last = manualStops[manualStops.length - 1];
+    if (!last.text.trim()) return;
+    const params = buildRouteSearchParams(
+      manualStops.map((s) => ({
+        text: s.text.trim(),
+        lat: s.coords?.lat,
+        lon: s.coords?.lon,
+      })),
+    );
     router.push(`/navigation?${params.toString()}`);
   };
 
-  const handleSelectTo = (result: LocationSuggestion) => {
-    setManualTo(result.label);
-    setManualToCoords({ lat: result.lat, lon: result.lon });
+  const updateStopText = (index: number, text: string) => {
+    setManualStops((prev) =>
+      prev.map((s, i) => (i === index ? { text, coords: null } : s)),
+    );
   };
 
-  const handleSelectFrom = (result: LocationSuggestion) => {
-    setManualFrom(result.label);
-    setManualFromCoords({ lat: result.lat, lon: result.lon });
+  const selectStop = (index: number, result: LocationSuggestion) => {
+    setManualStops((prev) =>
+      prev.map((s, i) => (i === index ? { text: result.label, coords: { lat: result.lat, lon: result.lon } } : s)),
+    );
+  };
+
+  const addStop = () => {
+    setManualStops((prev) =>
+      prev.length >= MAX_STOPS
+        ? prev
+        : [...prev.slice(0, prev.length - 1), { text: "", coords: null }, prev[prev.length - 1]],
+    );
+  };
+
+  const removeStop = (index: number) => {
+    setManualStops((prev) => (prev.length > 2 ? prev.filter((_, i) => i !== index) : prev));
   };
 
   const distanceKm = plan ? (plan.distanceMeters / 1000).toFixed(1) : null;
@@ -208,6 +227,7 @@ export function NavigationScreen() {
     () => (plan ? formatArrival(plan.durationSeconds) : null),
     [plan],
   );
+  const routeSummary = plan ? plan.stops.map((s) => s.name).join(" → ") : "";
 
   return (
     <div className="flex h-full flex-col">
@@ -238,36 +258,59 @@ export function NavigationScreen() {
               className="pointer-events-auto flex flex-col gap-2.5 rounded-xl border border-black/5 bg-white/95 p-3 shadow-card-hover backdrop-blur-md"
             >
               <div className="flex flex-col gap-1.5">
-                <LocationInput
-                  value={manualFrom}
-                  onChange={(text) => {
-                    setManualFrom(text);
-                    setManualFromCoords(null);
-                  }}
-                  onSelect={handleSelectFrom}
-                  placeholder="Звідки (поточне місце)"
-                  dotColor="#1c7ed6"
-                  onLocate={() => routeMapRef.current?.recenter()}
-                />
-                <LocationInput
-                  value={manualTo}
-                  onChange={(text) => {
-                    setManualTo(text);
-                    setManualToCoords(null);
-                  }}
-                  onSelect={handleSelectTo}
-                  placeholder="Куди?"
-                  dotColor="#e03131"
-                  required
-                />
+                {manualStops.map((stop, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === manualStops.length - 1;
+                  const placeholder = isFirst
+                    ? "Звідки (поточне місце)"
+                    : isLast
+                      ? "Куди?"
+                      : "Проміжна точка";
+                  const dotColor = isFirst ? "#1c7ed6" : isLast ? "#e03131" : "#f59f00";
+                  return (
+                    <div key={index} className="flex items-center gap-1.5">
+                      <div className="flex-1">
+                        <LocationInput
+                          value={stop.text}
+                          onChange={(text) => updateStopText(index, text)}
+                          onSelect={(result) => selectStop(index, result)}
+                          placeholder={placeholder}
+                          dotColor={dotColor}
+                          required={!isFirst}
+                          onLocate={isFirst ? () => routeMapRef.current?.recenter() : undefined}
+                        />
+                      </div>
+                      {manualStops.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => removeStop(index)}
+                          aria-label="Видалити точку"
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-brand-muted transition active:scale-90 active:bg-brand-dark/[0.06]"
+                        >
+                          <XIcon className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+              {manualStops.length < MAX_STOPS && (
+                <button
+                  type="button"
+                  onClick={addStop}
+                  className="flex items-center justify-center gap-1.5 text-center font-condensed text-xs font-bold uppercase tracking-wide text-brand-muted transition active:scale-95"
+                >
+                  <PlusIcon className="h-3.5 w-3.5" />
+                  Додати точку
+                </button>
+              )}
               <button
                 type="submit"
-                disabled={!manualTo.trim()}
+                disabled={!manualStops[manualStops.length - 1].text.trim()}
                 className="flex h-12 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-sm font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
               >
                 <NavigationIcon className="h-4 w-4" />
-                Проклади маршрут
+                Прокласти маршрут
               </button>
             </form>
           )}
@@ -302,10 +345,7 @@ export function NavigationScreen() {
                 onClick={() => {
                   setDriving(false);
                   setEditing(true);
-                  setManualFrom("");
-                  setManualTo("");
-                  setManualFromCoords(null);
-                  setManualToCoords(null);
+                  resetForm();
                 }}
                 className="shrink-0 rounded-md bg-red-600 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-wide text-white transition active:scale-95"
               >
@@ -321,7 +361,7 @@ export function NavigationScreen() {
                 onClick={() => setEditing(true)}
                 className="text-center text-xs text-brand-muted underline underline-offset-2"
               >
-                {plan.from.name} → {plan.to.name}
+                {routeSummary}
               </button>
               <p className="text-center font-condensed text-sm font-bold uppercase tracking-wide text-brand-text">
                 {distanceKm} км · {durationLabel} · прибуття {arrivalLabel}

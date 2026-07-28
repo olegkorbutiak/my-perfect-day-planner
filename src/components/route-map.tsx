@@ -7,7 +7,12 @@ import type { CircleMarker, Map as LeafletMap, Polyline } from "leaflet";
 import { LocateIcon } from "@/components/icons";
 
 type LatLon = { lat: number; lon: number };
-type RouteData = { from: LatLon; to: LatLon; geometry: [number, number][] };
+type RouteData = { stops: (LatLon & { name: string })[]; geometry: [number, number][] };
+
+/** Marker colors by position: start, intermediate stops, destination. */
+const START_COLOR = "#1c7ed6";
+const WAYPOINT_COLOR = "#f59f00";
+const END_COLOR = "#e03131";
 
 export type RouteMapHandle = {
   /** Pan the map back to the live position (e.g. after the user dragged away). */
@@ -53,8 +58,7 @@ export const RouteMap = forwardRef<
   const mapRef = useRef<LeafletMap | null>(null);
   const liveMarkerRef = useRef<CircleMarker | null>(null);
   const lineRef = useRef<Polyline | null>(null);
-  const startMarkerRef = useRef<CircleMarker | null>(null);
-  const endMarkerRef = useRef<CircleMarker | null>(null);
+  const stopMarkersRef = useRef<CircleMarker[]>([]);
   const centeredOnLocationRef = useRef(false);
   const wasFollowingRef = useRef(false);
   // True once the user drags the map by hand — pauses auto-panning to the live
@@ -100,27 +104,23 @@ export const RouteMap = forwardRef<
     if (!ready || !L || !map) return;
 
     lineRef.current?.remove();
-    startMarkerRef.current?.remove();
-    endMarkerRef.current?.remove();
+    stopMarkersRef.current.forEach((m) => m.remove());
     lineRef.current = null;
-    startMarkerRef.current = null;
-    endMarkerRef.current = null;
+    stopMarkersRef.current = [];
 
     if (!route) return;
 
     lineRef.current = L.polyline(route.geometry, { color: "#2f9e44", weight: 5 }).addTo(map);
-    startMarkerRef.current = L.circleMarker([route.from.lat, route.from.lon], {
-      radius: 8,
-      color: "#1c7ed6",
-      fillColor: "#1c7ed6",
-      fillOpacity: 1,
-    }).addTo(map);
-    endMarkerRef.current = L.circleMarker([route.to.lat, route.to.lon], {
-      radius: 8,
-      color: "#e03131",
-      fillColor: "#e03131",
-      fillOpacity: 1,
-    }).addTo(map);
+    stopMarkersRef.current = route.stops.map((stop, index) => {
+      const color =
+        index === 0 ? START_COLOR : index === route.stops.length - 1 ? END_COLOR : WAYPOINT_COLOR;
+      return L.circleMarker([stop.lat, stop.lon], {
+        radius: 8,
+        color,
+        fillColor: color,
+        fillOpacity: 1,
+      }).addTo(map);
+    });
 
     map.fitBounds(lineRef.current.getBounds(), {
       paddingTopLeft: [32, 32],

@@ -7,6 +7,7 @@ import { Logo } from "@/components/logo";
 import { AccountButton } from "@/components/account-button";
 import { useTasks } from "@/lib/tasks-context";
 import { useSpeechRecognition } from "@/lib/use-speech-recognition";
+import { buildRouteSearchParams } from "@/lib/route-url";
 
 function autoResizeTextarea(el: HTMLTextAreaElement | null) {
   if (!el) return;
@@ -91,7 +92,7 @@ export default function CapturePage() {
       const data: {
         tasks?: { title: string; dueDate: string | null; dueTime: string | null }[];
         actions?: ParsedAction[];
-        route?: { from: string | null; to: string } | null;
+        route?: { stops: (string | null)[] } | null;
         error?: string;
       } = await response.json();
       if (!response.ok || (!data.tasks && !data.actions && !data.route)) {
@@ -101,8 +102,9 @@ export default function CapturePage() {
       if (data.route) {
         setText("");
         setBaseText("");
-        const params = new URLSearchParams({ to: data.route.to });
-        if (data.route.from) params.set("from", data.route.from);
+        const params = buildRouteSearchParams(
+          data.route.stops.map((name) => ({ text: name ?? "" })),
+        );
         router.push(`/navigation?${params.toString()}`);
         return;
       }

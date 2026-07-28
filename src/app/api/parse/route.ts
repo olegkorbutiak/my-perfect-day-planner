@@ -62,16 +62,22 @@ const SYSTEM_PROMPT =
   "жодна задача явно не підходить — НЕ додавай action і НІКОЛИ не вигадуй id, якого немає у списку. Той самий " +
   "текст може одночасно містити і нову задачу, і команду про існуючу. Якщо команд про існуючі задачі немає — " +
   "\"actions\": []. " +
-  "Окремо: текст може бути ПРОХАННЯМ ПРОКЛАСТИ МАРШРУТ/НАВІГАЦІЮ між двома місцями — напр. \"проклади маршрут " +
+  "Окремо: текст може бути ПРОХАННЯМ ПРОКЛАСТИ МАРШРУТ/НАВІГАЦІЮ між місцями — напр. \"проклади маршрут " +
   "зі Львова до Стрия\", \"як доїхати з Києва в Одесу\", \"побудуй найшвидший маршрут до аеропорту\", \"навігація " +
   "до вокзалу\". Це НЕ задача і НЕ дія над існуючою задачею — у такому разі поверни \"tasks\": [] і " +
-  "\"actions\": [], а \"route\" заповни об'єктом {\"from\": \"...\"|null, \"to\": \"...\"}: \"to\" — кінцева " +
-  "точка (обов'язково), \"from\" — початкова точка, якщо явно вказана в тексті (напр. \"зі Львова\"), інакше " +
-  "null (тоді буде використано поточне місезнаходження користувача). Обидві назви місць переведи у " +
-  "НАЗИВНИЙ відмінок українською (напр. \"зі Львова\" → \"Львів\", \"до Стрия\" → \"Стрий\", \"в Одесу\" → " +
-  "\"Одеса\") — саме так, як пишеться назва населеного пункту в довіднику, без прийменників і відмінкових " +
-  "закінчень, оскільки за цим текстом шукатимуться географічні координати. Якщо в тексті немає прохання " +
-  "прокласти маршрут — \"route\": null.";
+  "\"actions\": [], а \"route\" заповни об'єктом {\"stops\": [...]} — упорядкованим списком усіх точок " +
+  "маршруту по порядку проїзду. Перший елемент — початкова точка: якщо вона явно вказана в тексті (напр. " +
+  "\"зі Львова\"), напиши її назву; якщо не вказана (напр. просто \"проклади маршрут до Стрия\"), перший " +
+  "елемент — null (тоді буде використано поточне місцезнаходження користувача). Усі наступні елементи — " +
+  "кінцеві й проміжні точки, обов'язково рядками (не null), у порядку проїзду. Якщо текст описує МАРШРУТ " +
+  "ЧЕРЕЗ КІЛЬКА МІСЦЬ ланцюжком — напр. \"проклади маршрут зі Львова до Стрия, зі Стрия до Одеси\" або " +
+  "\"їдемо з Києва в Житомир, потім у Рівне\" — це ОДИН маршрут з кількома точками, тому поверни всі точки " +
+  "в одному масиві по порядку {\"stops\": [\"Львів\", \"Стрий\", \"Одеса\"]}, а НЕ повторюй спільну точку " +
+  "(\"Стрий\") двічі і не створюй окремих маршрутів. Кожну назву місця переведи у НАЗИВНИЙ відмінок " +
+  "українською (напр. \"зі Львова\" → \"Львів\", \"до Стрия\" → \"Стрий\", \"в Одесу\" → \"Одеса\") — саме " +
+  "так, як пишеться назва населеного пункту в довіднику, без прийменників і відмінкових закінчень, оскільки " +
+  "за цим текстом шукатимуться географічні координати. Якщо в тексті немає прохання прокласти маршрут — " +
+  "\"route\": null.";
 
 const ABSOLUTE_DATE_PATTERN = /^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const ACTION_TYPES = ["reschedule", "cancel", "complete", "uncomplete"] as const;
@@ -110,9 +116,9 @@ function formatExistingTasks(existingTasks: ExistingTask[]): string {
     .join("\n");
 }
 
-type ParsedRoute = { from: string | null; to: string };
+type ParsedRoute = { stops: (string | null)[] };
 
-function isParsedRoute(value: unknown): value is { from: unknown; to: unknown } {
+function isParsedRouteShape(value: unknown): value is { stops: unknown } {
   return typeof value === "object" && value !== null;
 }
 
@@ -203,17 +209,21 @@ async function requestTasks(
     : [];
 
   const rawRoute = (parsed as { route?: unknown })?.route;
-  const route: ParsedRoute | null =
-    isParsedRoute(rawRoute) &&
-    typeof rawRoute.to === "string" &&
-    rawRoute.to.trim() &&
-    (rawRoute.from === null || (typeof rawRoute.from === "string" && rawRoute.from.trim()))
-      ? {
-          to: sanitizeUkrainian(rawRoute.to.trim()),
-          from:
-            typeof rawRoute.from === "string" ? sanitizeUkrainian(rawRoute.from.trim()) : null,
-        }
-      : null;
+  const rawStops = isParsedRouteShape(rawRoute) ? rawRoute.stops : null;
+  let route: ParsedRoute | null = null;
+  if (Array.isArray(rawStops) && rawStops.length >= 2) {
+    const [first, ...rest] = rawStops;
+    const firstOk = first === null || (typeof first === "string" && first.trim());
+    const restOk = rest.every((s): s is string => typeof s === "string" && s.trim().length > 0);
+    if (firstOk && restOk) {
+      route = {
+        stops: [
+          first === null ? null : sanitizeUkrainian((first as string).trim()),
+          ...(rest as string[]).map((s) => sanitizeUkrainian(s.trim())),
+        ],
+      };
+    }
+  }
 
   return { tasks, actions, route, rateLimited: false };
 }

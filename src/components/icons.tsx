@@ -166,6 +166,14 @@ export function XIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function PlusIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <path d="M12 5v14M5 12h14" />
+    </Svg>
+  );
+}
+
 export function ArchiveIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
