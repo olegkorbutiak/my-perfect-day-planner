@@ -83,6 +83,7 @@ export function NavigationScreen() {
   const [manualTo, setManualTo] = useState("");
   const [manualFromCoords, setManualFromCoords] = useState<LatLon | null>(null);
   const [manualToCoords, setManualToCoords] = useState<LatLon | null>(null);
+  const [editing, setEditing] = useState(true);
 
   useEffect(() => {
     if (!toText) {
@@ -150,6 +151,16 @@ export function NavigationScreen() {
     setManualFromCoords(parseCoord(fromLatStr, fromLonStr));
   }, [toText, fromText, toLatStr, toLonStr, fromLatStr, fromLonStr]);
 
+  // Collapse the input form into a compact summary once a route is ready, so the
+  // map (route + live position) isn't mostly covered by the overlay. Re-expand
+  // automatically if the route is cleared.
+  useEffect(() => {
+    if (plan) setEditing(false);
+  }, [plan]);
+  useEffect(() => {
+    if (!toText) setEditing(true);
+  }, [toText]);
+
   const handleManualSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!manualTo.trim()) return;
@@ -200,85 +211,104 @@ export function NavigationScreen() {
             route={plan}
             liveCoord={myLocation}
             follow={driving || (!plan && !loading)}
+            bottomInset={220}
           />
         </div>
 
         <div className="pointer-events-none absolute inset-x-5 bottom-5 z-10 flex flex-col gap-2">
-          <form
-            onSubmit={handleManualSubmit}
-            className="pointer-events-auto flex flex-col gap-2.5 rounded-xl border border-black/5 bg-white/95 p-3 shadow-card-hover backdrop-blur-md"
-          >
-            <div className="flex flex-col gap-1.5">
-              <LocationInput
-                value={manualFrom}
-                onChange={(text) => {
-                  setManualFrom(text);
-                  setManualFromCoords(null);
-                }}
-                onSelect={handleSelectFrom}
-                placeholder="Звідки (поточне місце)"
-                dotColor="#1c7ed6"
-              />
-              <LocationInput
-                value={manualTo}
-                onChange={(text) => {
-                  setManualTo(text);
-                  setManualToCoords(null);
-                }}
-                onSelect={handleSelectTo}
-                placeholder="Куди?"
-                dotColor="#e03131"
-                required
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={!manualTo.trim()}
-              className="flex h-12 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-sm font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
+          {editing && (
+            <form
+              onSubmit={handleManualSubmit}
+              className="pointer-events-auto flex flex-col gap-2.5 rounded-xl border border-black/5 bg-white/95 p-3 shadow-card-hover backdrop-blur-md"
             >
-              <NavigationIcon className="h-4 w-4" />
-              Проклади маршрут
-            </button>
-          </form>
+              <div className="flex flex-col gap-1.5">
+                <LocationInput
+                  value={manualFrom}
+                  onChange={(text) => {
+                    setManualFrom(text);
+                    setManualFromCoords(null);
+                  }}
+                  onSelect={handleSelectFrom}
+                  placeholder="Звідки (поточне місце)"
+                  dotColor="#1c7ed6"
+                />
+                <LocationInput
+                  value={manualTo}
+                  onChange={(text) => {
+                    setManualTo(text);
+                    setManualToCoords(null);
+                  }}
+                  onSelect={handleSelectTo}
+                  placeholder="Куди?"
+                  dotColor="#e03131"
+                  required
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={!manualTo.trim()}
+                className="flex h-12 items-center justify-center gap-2 rounded-md bg-brand-green text-center font-condensed text-sm font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong disabled:opacity-30"
+              >
+                <NavigationIcon className="h-4 w-4" />
+                Проклади маршрут
+              </button>
+            </form>
+          )}
 
-          {loading && (
+          {!editing && loading && (
             <div className="pointer-events-auto rounded-xl border border-black/5 bg-white/95 p-4 text-center text-sm text-brand-muted shadow-card-hover backdrop-blur-md">
               Будую маршрут…
             </div>
           )}
 
-          {error && !loading && (
-            <div className="pointer-events-auto rounded-xl border border-black/5 bg-white/95 p-4 text-center text-sm text-red-600 shadow-card-hover backdrop-blur-md">
-              {error}
+          {!editing && error && !loading && (
+            <div className="pointer-events-auto flex flex-col gap-2 rounded-xl border border-black/5 bg-white/95 p-4 text-center shadow-card-hover backdrop-blur-md">
+              <p className="text-sm text-red-600">{error}</p>
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="font-condensed text-xs font-bold uppercase tracking-wide text-brand-muted underline underline-offset-2"
+              >
+                Змінити маршрут
+              </button>
             </div>
           )}
 
-          {plan && !loading && !error && (
-            <div className="pointer-events-auto flex flex-col gap-3 rounded-xl border border-black/5 bg-white/95 p-4 shadow-card-hover backdrop-blur-md">
-              <p className="text-center text-sm text-brand-muted">
-                {plan.from.name} → {plan.to.name}
-                <br />
-                <span className="font-condensed font-bold uppercase tracking-wide text-brand-text">
-                  {distanceKm} км · {durationLabel} в дорозі · прибуття {arrivalLabel}
-                </span>
+          {!editing && plan && !loading && !error && driving && (
+            <div className="pointer-events-auto flex items-center justify-between gap-3 rounded-xl border border-black/5 bg-white/95 px-4 py-2.5 shadow-card-hover backdrop-blur-md">
+              <p className="font-condensed text-sm font-bold uppercase tracking-wide text-brand-text">
+                {durationLabel}
+                <span className="text-brand-muted"> · прибуття {arrivalLabel}</span>
               </p>
-              {!driving ? (
-                <button
-                  type="button"
-                  onClick={() => setDriving(true)}
-                  className="h-16 rounded-md bg-brand-green text-center font-condensed text-lg font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong"
-                >
-                  Поїхали!
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setDriving(false)}
-                  className="h-16 rounded-md bg-red-600 text-center font-condensed text-lg font-bold uppercase tracking-wide text-white transition-all duration-200 active:scale-[0.98]"
-                >
-                  Зупинити
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => setDriving(false)}
+                className="shrink-0 rounded-md bg-red-600 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-wide text-white transition active:scale-95"
+              >
+                Зупинити
+              </button>
+            </div>
+          )}
+
+          {!editing && plan && !loading && !error && !driving && (
+            <div className="pointer-events-auto flex flex-col gap-2.5 rounded-xl border border-black/5 bg-white/95 p-3 shadow-card-hover backdrop-blur-md">
+              <button
+                type="button"
+                onClick={() => setEditing(true)}
+                className="text-center text-xs text-brand-muted underline underline-offset-2"
+              >
+                {plan.from.name} → {plan.to.name}
+              </button>
+              <p className="text-center font-condensed text-sm font-bold uppercase tracking-wide text-brand-text">
+                {distanceKm} км · {durationLabel} · прибуття {arrivalLabel}
+              </p>
+              <button
+                type="button"
+                onClick={() => setDriving(true)}
+                className="h-12 rounded-md bg-brand-green text-center font-condensed text-base font-bold uppercase tracking-wide text-white shadow-glow transition-all duration-200 active:scale-[0.98] active:bg-brand-green-strong"
+              >
+                Поїхали!
+              </button>
             </div>
           )}
         </div>

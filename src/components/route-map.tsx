@@ -15,10 +15,14 @@ export function RouteMap({
   route,
   liveCoord,
   follow,
+  bottomInset = 0,
 }: {
   route: RouteData | null;
   liveCoord: LatLon | null;
   follow: boolean;
+  /** Height (px) of overlay UI covering the bottom of the map, so the fitted
+   * route is biased away from it instead of centering behind it. */
+  bottomInset?: number;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -84,8 +88,14 @@ export function RouteMap({
         fillOpacity: 1,
       }).addTo(map);
 
-      map.fitBounds(lineRef.current.getBounds(), { padding: [32, 32] });
+      map.fitBounds(lineRef.current.getBounds(), {
+        paddingTopLeft: [32, 32],
+        paddingBottomRight: [32, bottomInset + 32],
+      });
     })();
+    // bottomInset intentionally excluded: it only matters at the moment the route
+    // is (re)drawn, not on every overlay height change while the same route is shown.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, route]);
 
   useEffect(() => {
