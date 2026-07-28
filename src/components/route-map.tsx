@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type * as LeafletNamespace from "leaflet";
 import type { CircleMarker, Map as LeafletMap, Polyline } from "leaflet";
+import { LocateIcon } from "@/components/icons";
 
 type LatLon = { lat: number; lon: number };
 type RouteData = { from: LatLon; to: LatLon; geometry: [number, number][] };
@@ -50,6 +51,9 @@ export function RouteMap({
   const endMarkerRef = useRef<CircleMarker | null>(null);
   const centeredOnLocationRef = useRef(false);
   const wasFollowingRef = useRef(false);
+  // True once the user drags the map by hand — pauses auto-panning to the live
+  // position so they can freely look at the route, until they tap "recenter".
+  const userPannedRef = useRef(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -62,6 +66,9 @@ export function RouteMap({
       leafletRef.current = L;
       const map = L.map(containerRef.current).setView(UKRAINE_CENTER, UKRAINE_ZOOM);
       mapRef.current = map;
+      map.on("dragstart", () => {
+        userPannedRef.current = true;
+      });
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         maxZoom: 19,
@@ -112,6 +119,7 @@ export function RouteMap({
     map.fitBounds(lineRef.current.getBounds(), {
       paddingTopLeft: [32, 32],
       paddingBottomRight: [32, bottomInset + 32],
+      animate: false,
     });
     // bottomInset intentionally excluded: it only matters at the moment the route
     // is (re)drawn, not on every overlay height change while the same route is shown.
@@ -136,7 +144,7 @@ export function RouteMap({
     }
 
     if (!route && !centeredOnLocationRef.current) {
-      map.setView([liveCoord.lat, liveCoord.lon], LOCATION_ZOOM);
+      map.setView([liveCoord.lat, liveCoord.lon], LOCATION_ZOOM, { animate: false });
       centeredOnLocationRef.current = true;
       return;
     }
@@ -153,6 +161,9 @@ export function RouteMap({
     // it as "not following yet" and double-trigger this.
     if (!wasFollowingRef.current) {
       wasFollowingRef.current = true;
+      // (Re)starting following is an explicit intent to snap back to live
+      // tracking, even if the user had panned away earlier.
+      userPannedRef.current = false;
       if (route) {
         // The live GPS fix and the route's own start point can disagree by a
         // fair bit (geocoding vs GPS, accuracy, etc.). Fit to the live point
@@ -171,14 +182,39 @@ export function RouteMap({
           map.getBoundsZoom(bounds, false, L.point(60, 60)),
           DRIVING_ZOOM,
         );
-        map.setView(bounds.getCenter(), targetZoom);
+        map.setView(bounds.getCenter(), targetZoom, { animate: false });
       } else {
-        map.setView([liveCoord.lat, liveCoord.lon], DRIVING_ZOOM);
+        map.setView([liveCoord.lat, liveCoord.lon], DRIVING_ZOOM, { animate: false });
       }
-    } else {
-      map.panTo([liveCoord.lat, liveCoord.lon]);
+    } else if (!userPannedRef.current) {
+      // animate: false — animated pans/zooms (fitBounds, panTo, or setView with
+      // an unchanged zoom) turned out to silently no-op in some cases here;
+      // the instant, non-animated path is the one that reliably applies.
+      map.setView([liveCoord.lat, liveCoord.lon], map.getZoom(), { animate: false });
     }
   }, [ready, liveCoord, follow, route]);
 
-  return <div ref={containerRef} className="h-full w-full" />;
+  const handleRecenter = () => {
+    userPannedRef.current = false;
+    const map = mapRef.current;
+    if (map && liveCoord) {
+      map.setView([liveCoord.lat, liveCoord.lon], map.getZoom(), { animate: false });
+    }
+  };
+
+  return (
+    <div className="relative h-full w-full">
+      <div ref={containerRef} className="h-full w-full" />
+      {liveCoord && (
+        <button
+          type="button"
+          onClick={handleRecenter}
+          aria-label="Показати моє місцезнаходження"
+          className="absolute right-3 top-3 z-[1000] flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-dark shadow-card-hover transition active:scale-90"
+        >
+          <LocateIcon className="h-5 w-5" />
+        </button>
+      )}
+    </div>
+  );
 }

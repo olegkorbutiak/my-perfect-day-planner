@@ -196,6 +196,15 @@ export function ChartIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function LocateIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Svg {...props}>
+      <circle cx="12" cy="12" r="3" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+    </Svg>
+  );
+}
+
 export function NavigationIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Svg {...props}>
