@@ -132,7 +132,9 @@ export function NavigationScreen() {
       </div>
 
       <div className="relative min-h-0 flex-1 px-5 pb-5">
-        <div className="h-full w-full overflow-hidden rounded-md bg-neutral-100">
+        {/* isolate: contains Leaflet's own high z-index panes/controls so they can't
+            paint over the overlay card below, regardless of DOM order. */}
+        <div className="isolate h-full w-full overflow-hidden rounded-md bg-neutral-100">
           <RouteMap
             route={plan}
             liveCoord={myLocation}
@@ -140,27 +142,33 @@ export function NavigationScreen() {
           />
         </div>
 
-        <div className="pointer-events-none absolute inset-x-5 bottom-5 flex flex-col gap-3">
+        <div className="pointer-events-none absolute inset-x-5 bottom-5 z-10 flex flex-col gap-2">
           <form
             onSubmit={handleManualSubmit}
-            className="pointer-events-auto flex flex-col gap-2 rounded-md bg-white/95 p-3 shadow-card-hover backdrop-blur"
+            className="pointer-events-auto flex flex-col gap-2.5 rounded-xl border border-black/5 bg-white/95 p-3 shadow-card-hover backdrop-blur-md"
           >
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={manualFrom}
-                onChange={(e) => setManualFrom(e.target.value)}
-                placeholder="Звідки (поточне місце)"
-                className="h-11 flex-1 rounded-md bg-neutral-100 px-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
-              />
-              <input
-                type="text"
-                value={manualTo}
-                onChange={(e) => setManualTo(e.target.value)}
-                placeholder="Куди?"
-                required
-                className="h-11 flex-1 rounded-md bg-neutral-100 px-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
-              />
+            <div className="flex flex-col gap-1.5">
+              <div className="relative flex items-center">
+                <span className="pointer-events-none absolute left-3.5 h-2 w-2 rounded-full bg-[#1c7ed6]" />
+                <input
+                  type="text"
+                  value={manualFrom}
+                  onChange={(e) => setManualFrom(e.target.value)}
+                  placeholder="Звідки (поточне місце)"
+                  className="h-11 w-full rounded-md bg-neutral-100 pl-9 pr-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+                />
+              </div>
+              <div className="relative flex items-center">
+                <span className="pointer-events-none absolute left-3.5 h-2 w-2 rounded-full bg-[#e03131]" />
+                <input
+                  type="text"
+                  value={manualTo}
+                  onChange={(e) => setManualTo(e.target.value)}
+                  placeholder="Куди?"
+                  required
+                  className="h-11 w-full rounded-md bg-neutral-100 pl-9 pr-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+                />
+              </div>
             </div>
             <button
               type="submit"
@@ -173,19 +181,19 @@ export function NavigationScreen() {
           </form>
 
           {loading && (
-            <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-brand-muted shadow-card-hover backdrop-blur">
+            <div className="pointer-events-auto rounded-xl border border-black/5 bg-white/95 p-4 text-center text-sm text-brand-muted shadow-card-hover backdrop-blur-md">
               Будую маршрут…
             </div>
           )}
 
           {error && !loading && (
-            <div className="pointer-events-auto rounded-md bg-white/95 p-4 text-center text-sm text-red-600 shadow-card-hover backdrop-blur">
+            <div className="pointer-events-auto rounded-xl border border-black/5 bg-white/95 p-4 text-center text-sm text-red-600 shadow-card-hover backdrop-blur-md">
               {error}
             </div>
           )}
 
           {plan && !loading && !error && (
-            <div className="pointer-events-auto flex flex-col gap-3 rounded-md bg-white/95 p-4 shadow-card-hover backdrop-blur">
+            <div className="pointer-events-auto flex flex-col gap-3 rounded-xl border border-black/5 bg-white/95 p-4 shadow-card-hover backdrop-blur-md">
               <p className="text-center text-sm text-brand-muted">
                 {plan.from.name} → {plan.to.name}
                 <br />
