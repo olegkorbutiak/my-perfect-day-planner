@@ -73,7 +73,11 @@ export async function POST(request: Request) {
     body?.fromCoords &&
     typeof body.fromCoords.lat === "number" &&
     typeof body.fromCoords.lon === "number"
-      ? { name: "Ваше місцезнаходження", lat: body.fromCoords.lat, lon: body.fromCoords.lon }
+      ? { name: fromText || "Ваше місцезнаходження", lat: body.fromCoords.lat, lon: body.fromCoords.lon }
+      : null;
+  const toCoords =
+    body?.toCoords && typeof body.toCoords.lat === "number" && typeof body.toCoords.lon === "number"
+      ? { name: toText, lat: body.toCoords.lat, lon: body.toCoords.lon }
       : null;
 
   if (!toText) {
@@ -85,7 +89,7 @@ export async function POST(request: Request) {
 
   const [from, to] = await Promise.all([
     fromCoords ? Promise.resolve(fromCoords) : geocode(apiKey, fromText),
-    geocode(apiKey, toText),
+    toCoords ? Promise.resolve(toCoords) : geocode(apiKey, toText),
   ]);
 
   if (!from) {
