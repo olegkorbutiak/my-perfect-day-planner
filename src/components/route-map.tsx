@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import "leaflet/dist/leaflet.css";
 import type * as LeafletNamespace from "leaflet";
 import type { CircleMarker, Map as LeafletMap, Polyline } from "leaflet";
@@ -8,6 +8,11 @@ import { LocateIcon } from "@/components/icons";
 
 type LatLon = { lat: number; lon: number };
 type RouteData = { from: LatLon; to: LatLon; geometry: [number, number][] };
+
+export type RouteMapHandle = {
+  /** Pan the map back to the live position (e.g. after the user dragged away). */
+  recenter: () => void;
+};
 
 const UKRAINE_CENTER: [number, number] = [48.3794, 31.1656];
 const UKRAINE_ZOOM = 6;
@@ -29,19 +34,20 @@ function nearestPointOnLine(geometry: [number, number][], point: LatLon): [numbe
   return nearest;
 }
 
-export function RouteMap({
-  route,
-  liveCoord,
-  follow,
-  bottomInset = 0,
-}: {
-  route: RouteData | null;
-  liveCoord: LatLon | null;
-  follow: boolean;
-  /** Height (px) of overlay UI covering the bottom of the map, so the fitted
-   * route is biased away from it instead of centering behind it. */
-  bottomInset?: number;
-}) {
+export const RouteMap = forwardRef<
+  RouteMapHandle,
+  {
+    route: RouteData | null;
+    liveCoord: LatLon | null;
+    follow: boolean;
+    /** Height (px) of overlay UI covering the bottom of the map, so the fitted
+     * route is biased away from it instead of centering behind it. */
+    bottomInset?: number;
+    /** Show the map's own floating "recenter" button. Hide it when a caller
+     * (e.g. a button inside the Звідки field) already offers the same action. */
+    showButton?: boolean;
+  }
+>(function RouteMap({ route, liveCoord, follow, bottomInset = 0, showButton = true }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const leafletRef = useRef<typeof LeafletNamespace | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -194,7 +200,7 @@ export function RouteMap({
     }
   }, [ready, liveCoord, follow, route]);
 
-  const handleRecenter = () => {
+  const recenter = () => {
     userPannedRef.current = false;
     const map = mapRef.current;
     if (map && liveCoord) {
@@ -202,13 +208,15 @@ export function RouteMap({
     }
   };
 
+  useImperativeHandle(ref, () => ({ recenter }));
+
   return (
     <div className="relative h-full w-full">
       <div ref={containerRef} className="h-full w-full" />
-      {liveCoord && (
+      {showButton && liveCoord && (
         <button
           type="button"
-          onClick={handleRecenter}
+          onClick={recenter}
           aria-label="Показати моє місцезнаходження"
           className="absolute right-3 top-3 z-[1000] flex h-10 w-10 items-center justify-center rounded-full bg-white text-brand-dark shadow-card-hover transition active:scale-90"
         >
@@ -217,4 +225,4 @@ export function RouteMap({
       )}
     </div>
   );
-}
+});

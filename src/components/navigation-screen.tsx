@@ -2,9 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { NavigationIcon } from "@/components/icons";
 import { LocationInput, type LocationSuggestion } from "@/components/location-input";
+import type { RouteMapHandle } from "@/components/route-map";
 import { formatDuration } from "@/lib/date-utils";
 
 const RouteMap = dynamic(() => import("@/components/route-map").then((m) => m.RouteMap), {
@@ -84,6 +85,7 @@ export function NavigationScreen() {
   const [manualFromCoords, setManualFromCoords] = useState<LatLon | null>(null);
   const [manualToCoords, setManualToCoords] = useState<LatLon | null>(null);
   const [editing, setEditing] = useState(!toText);
+  const routeMapRef = useRef<RouteMapHandle>(null);
 
   useEffect(() => {
     if (!toText) {
@@ -220,10 +222,12 @@ export function NavigationScreen() {
             paint over the overlay card below, regardless of DOM order. */}
         <div className="isolate h-full w-full overflow-hidden rounded-md bg-neutral-100">
           <RouteMap
+            ref={routeMapRef}
             route={plan}
             liveCoord={myLocation}
             follow={driving || (!plan && !loading)}
             bottomInset={220}
+            showButton={!editing}
           />
         </div>
 
@@ -243,6 +247,7 @@ export function NavigationScreen() {
                   onSelect={handleSelectFrom}
                   placeholder="Звідки (поточне місце)"
                   dotColor="#1c7ed6"
+                  onLocate={() => routeMapRef.current?.recenter()}
                 />
                 <LocationInput
                   value={manualTo}

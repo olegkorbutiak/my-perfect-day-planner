@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { LocateIcon } from "@/components/icons";
 
 export type LocationSuggestion = { label: string; lat: number; lon: number };
 
@@ -13,6 +14,7 @@ export function LocationInput({
   placeholder,
   dotColor,
   required,
+  onLocate,
 }: {
   value: string;
   onChange: (text: string) => void;
@@ -20,6 +22,9 @@ export function LocationInput({
   placeholder: string;
   dotColor: string;
   required?: boolean;
+  /** Show a "use my location" button inside the field (right side) and call
+   * this when it's tapped. */
+  onLocate?: () => void;
 }) {
   const [suggestions, setSuggestions] = useState<LocationSuggestion[]>([]);
   const [open, setOpen] = useState(false);
@@ -79,8 +84,21 @@ export function LocationInput({
         onBlur={() => setTimeout(() => setOpen(false), 150)}
         placeholder={placeholder}
         required={required}
-        className="h-11 w-full rounded-md bg-neutral-100 pl-9 pr-3 text-sm text-brand-text outline-none placeholder:text-neutral-400"
+        className={`h-11 w-full rounded-md bg-neutral-100 pl-9 text-sm text-brand-text outline-none placeholder:text-neutral-400 ${
+          onLocate ? "pr-10" : "pr-3"
+        }`}
       />
+      {onLocate && (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onLocate}
+          aria-label="Використати моє місцезнаходження"
+          className="absolute right-1.5 flex h-8 w-8 items-center justify-center rounded-md text-brand-muted transition active:scale-90 active:bg-brand-dark/[0.06]"
+        >
+          <LocateIcon className="h-4 w-4" />
+        </button>
+      )}
       {open && (
         <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-48 overflow-y-auto rounded-md bg-white shadow-card-hover">
           {suggestions.map((s) => (
