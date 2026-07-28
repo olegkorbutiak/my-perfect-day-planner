@@ -297,6 +297,10 @@ export function NavigationScreen() {
                 onClick={() => {
                   setDriving(false);
                   setEditing(true);
+                  setManualFrom("");
+                  setManualTo("");
+                  setManualFromCoords(null);
+                  setManualToCoords(null);
                 }}
                 className="shrink-0 rounded-md bg-red-600 px-4 py-2 font-condensed text-xs font-bold uppercase tracking-wide text-white transition active:scale-95"
               >
