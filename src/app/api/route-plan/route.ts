@@ -32,7 +32,10 @@ async function getDirections(
   apiKey: string,
   from: GeoPoint,
   to: GeoPoint,
-): Promise<{ geometry: [number, number][]; distanceMeters: number; durationSeconds: number } | null> {
+): Promise<
+  | { geometry: [number, number][]; distanceMeters: number; durationSeconds: number }
+  | { error: string }
+> {
   const response = await fetch(DIRECTIONS_URL, {
     method: "POST",
     signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -46,13 +49,39 @@ async function getDirections(
         [to.lon, to.lat],
       ],
     }),
-  }).catch(() => null);
-  if (!response || !response.ok) return null;
+  }).catch((err) => {
+    console.error("ORS directions request failed to send", err);
+    return null;
+  });
+  if (!response) return { error: "Не вдалося з'єднатися зі службою маршрутів" };
+
   const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    console.error(
+      "ORS directions error",
+      response.status,
+      JSON.stringify(data),
+      "from",
+      from,
+      "to",
+      to,
+    );
+    const orsMessage = data?.error?.message;
+    // ORS error code 2010 = no routable road found near one of the points
+    // (e.g. deep inside a rail yard / industrial site with no mapped road).
+    if (data?.error?.code === 2010) {
+      return { error: "Не знайдено дороги біля однієї з точок маршруту. Вкажіть точку відправлення точніше." };
+    }
+    return { error: orsMessage ? `Не вдалося побудувати маршрут: ${orsMessage}` : "Не вдалося побудувати маршрут" };
+  }
+
   const feature = data?.features?.[0];
   const coords = feature?.geometry?.coordinates;
   const summary = feature?.properties?.summary;
-  if (!Array.isArray(coords) || !summary) return null;
+  if (!Array.isArray(coords) || !summary) {
+    console.error("ORS directions returned unexpected shape", JSON.stringify(data));
+    return { error: "Не вдалося побудувати маршрут" };
+  }
   return {
     geometry: coords.map((c: [number, number]) => [c[1], c[0]]),
     distanceMeters: summary.distance,
@@ -103,8 +132,8 @@ export async function POST(request: Request) {
   }
 
   const directions = await getDirections(apiKey, from, to);
-  if (!directions) {
-    return NextResponse.json({ error: "Не вдалося побудувати маршрут" }, { status: 502 });
+  if ("error" in directions) {
+    return NextResponse.json({ error: directions.error }, { status: 502 });
   }
 
   return NextResponse.json({ from, to, ...directions });
