@@ -10,6 +10,7 @@ type RouteData = { from: LatLon; to: LatLon; geometry: [number, number][] };
 const UKRAINE_CENTER: [number, number] = [48.3794, 31.1656];
 const UKRAINE_ZOOM = 6;
 const LOCATION_ZOOM = 14;
+const DRIVING_ZOOM = 16;
 
 export function RouteMap({
   route,
@@ -31,6 +32,7 @@ export function RouteMap({
   const startMarkerRef = useRef<CircleMarker | null>(null);
   const endMarkerRef = useRef<CircleMarker | null>(null);
   const centeredOnLocationRef = useRef(false);
+  const wasFollowingRef = useRef(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -121,8 +123,16 @@ export function RouteMap({
         map.setView([liveCoord.lat, liveCoord.lon], LOCATION_ZOOM);
         centeredOnLocationRef.current = true;
       } else if (follow) {
-        map.panTo([liveCoord.lat, liveCoord.lon]);
+        // Zoom in once, deliberately, right when following starts (e.g. "Поїхали!")
+        // instead of relying on whatever zoom was already set — then only pan on
+        // every later update so it never creeps in further.
+        if (!wasFollowingRef.current) {
+          map.setView([liveCoord.lat, liveCoord.lon], DRIVING_ZOOM);
+        } else {
+          map.panTo([liveCoord.lat, liveCoord.lon]);
+        }
       }
+      wasFollowingRef.current = follow;
     })();
   }, [ready, liveCoord, follow, route]);
 
